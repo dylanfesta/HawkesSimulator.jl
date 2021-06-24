@@ -1,0 +1,13 @@
+name = "HawkesSimulator"
+uuid = "f4bfcbbe-5b1c-4dbf-9b19-ca03e52722c1"
+authors = ["Dylan Festa <dylan.festa@gmail.com>"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]

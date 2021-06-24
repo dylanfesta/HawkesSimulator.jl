@@ -1,0 +1,3 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+HawkesSimulator = "f4bfcbbe-5b1c-4dbf-9b19-ca03e52722c1"
