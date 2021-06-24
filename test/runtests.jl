@@ -1,6 +1,6 @@
-using HawkesSimulator
+using HawkesProcesses
 using Test
 
-@testset "HawkesSimulator.jl" begin
+@testset "HawkesProcesses.jl" begin
     # Write your tests here.
 end
