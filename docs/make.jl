@@ -7,7 +7,7 @@ using HawkesSimulator ; global const H = HawkesSimulator
 DocMeta.setdocmeta!(HawkesSimulator, :DocTestSetup, :(using HawkesSimulator); recursive=true)
 
 makedocs(;
-    modules=[HawkesProcesses],
+    modules=[HawkesSimulator],
     authors="Dylan Festa <dylan.festa@gmail.com>",
     repo="https://github.com/dylanfesta/HawkesSimulator.jl/blob/{commit}{path}#{line}",
     sitename="HawkesSimulator.jl",
