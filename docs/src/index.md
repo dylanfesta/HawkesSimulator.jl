@@ -1,18 +1,18 @@
 ```@meta
-CurrentModule = HawkesProcesses
+CurrentModule = HawkesSimulator
 ```
 
 # HawkesProcesses
 
-[![](https://img.shields.io/static/v1?logo=GitHub&label=Open%20on%20GitHub&message=HawkesProcesses.jl&color=blue)](https://github.com/dylanfesta/HawkesProcesses.jl)
+[![](https://img.shields.io/static/v1?logo=GitHub&label=Open%20on%20GitHub&message=HawkesSimulator.jl&color=blue)](https://github.com/dylanfesta/HawkesSimulator.jl)
 
-Documentation for [HawkesProcesses](https://github.com/dylanfesta/HawkesProcesses.jl).
+Documentation for [HawkesSimulator](https://github.com/dylanfesta/HawkesSimulator.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [HawkesProcesses]
+Modules = [HawkesSimulator]
 ```
 
 ## Examples

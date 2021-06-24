@@ -1,5 +1,5 @@
 ```@meta
-EditURL = "https://github.com/dylanfesta/HawkesProcesses.jl/blob/master/examples/exp_1and2D.jl"
+EditURL = "https://github.com/dylanfesta/HawkesSimulator.jl/blob/master/examples/exp_1and2D.jl"
 ```
 
 # 1D and 2D Hawkes processes with exponential kernel
@@ -25,7 +25,7 @@ using ProgressMeter
 using Random
 Random.seed!(0)
 
-using HawkesProcesses; const global H = HawkesProcesses
+using HawkesSimulator; const global H = HawkesSimulator
 
 """
     onedmat(x::R) where R

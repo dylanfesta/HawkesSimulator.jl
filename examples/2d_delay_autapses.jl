@@ -16,7 +16,7 @@ using FFTW
 using Random
 Random.seed!(0)
 
-using HawkesProcesses; global const H = HawkesProcesses
+using HawkesSimulator; global const H = HawkesSimulator
 
 ##
 
@@ -176,4 +176,4 @@ doplot()
 
 # **THE END**
 
-# Literate.markdown("examples/2d_delay_autapses.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesProcesses.jl/blob/master") #src
+# Literate.markdown("examples/2d_delay_autapses.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src

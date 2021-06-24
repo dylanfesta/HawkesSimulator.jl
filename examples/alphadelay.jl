@@ -24,7 +24,7 @@ using ProgressMeter
 using Random
 Random.seed!(1) # zero does not look as nice :-P
 
-using HawkesProcesses; const global H = HawkesProcesses
+using HawkesSimulator; const global H = HawkesSimulator
 
 function onedmat(x::Real)
   ret=Matrix{Float64}(undef,1,1)
@@ -145,4 +145,4 @@ doplot()
 
 # **THE END**
 
-# Literate.markdown("examples/alphadelay.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesProcesses.jl/blob/master") #src
+# Literate.markdown("examples/alphadelay.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src

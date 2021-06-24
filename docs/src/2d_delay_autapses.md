@@ -1,5 +1,5 @@
 ```@meta
-EditURL = "https://github.com/dylanfesta/HawkesProcesses.jl/blob/master/examples/2d_delay_autapses.jl"
+EditURL = "https://github.com/dylanfesta/HawkesSimulator.jl/blob/master/examples/2d_delay_autapses.jl"
 ```
 
 # 2D process with delayed-alpha mutual interactions and exp self interaction
@@ -18,7 +18,7 @@ using FFTW
 using Random
 Random.seed!(0)
 
-using HawkesProcesses; global const H = HawkesProcesses
+using HawkesSimulator; global const H = HawkesSimulator
 
 #
 ```

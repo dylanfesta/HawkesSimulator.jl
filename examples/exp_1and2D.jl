@@ -22,7 +22,7 @@ using ProgressMeter
 using Random
 Random.seed!(0)
 
-using HawkesProcesses; const global H = HawkesProcesses
+using HawkesSimulator; const global H = HawkesSimulator
 
 """
     onedmat(x::R) where R
@@ -265,4 +265,4 @@ oneplot(2,2)
 
 # **THE END**
 
-# Literate.markdown("examples/exp_1and2D.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesProcesses.jl/blob/master") #src
+# Literate.markdown("examples/exp_1and2D.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src

@@ -1,5 +1,5 @@
 ```@meta
-EditURL = "https://github.com/dylanfesta/HawkesProcesses.jl/blob/master/examples/alphadelay.jl"
+EditURL = "https://github.com/dylanfesta/HawkesSimulator.jl/blob/master/examples/alphadelay.jl"
 ```
 
 # 1D Hawkes process with delayed alpha kernel
@@ -27,7 +27,7 @@ using ProgressMeter
 using Random
 Random.seed!(1) # zero does not look as nice :-P
 
-using HawkesProcesses; const global H = HawkesProcesses
+using HawkesSimulator; const global H = HawkesSimulator
 
 function onedmat(x::Real)
   ret=Matrix{Float64}(undef,1,1)
@@ -78,8 +78,11 @@ end
 doplot()
 ```
 
-when defining a new kernel, one needs also to define an upper limit function.
-the closer it is to the true kernel, the better.
+when defining a new kernel in the code,
+the function `interaction_kernel(...)`
+one needs also to define a non-increasing upper limit function,
+`interaction_kernel_upper(...)`
+the closer it is to the true kernel, the more efficient the simulation.
 
 ```@example alphadelay
 #
