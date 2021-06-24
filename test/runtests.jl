@@ -1,6 +1,6 @@
-using HawkesProcesses
+using HawkesSimulator ; global const H = HawkesSimulator
 using Test
 
-@testset "HawkesProcesses.jl" begin
-    # Write your tests here.
+@testset "Nothing" begin
+    @test true
 end

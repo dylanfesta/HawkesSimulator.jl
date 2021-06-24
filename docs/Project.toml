@@ -2,7 +2,6 @@
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-HawkesSimulator = "f4bfcbbe-5b1c-4dbf-9b19-ca03e52722c1"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NamedColors = "51fcb6bd-ecd8-522c-95bc-4099d1d03463"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"

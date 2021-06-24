@@ -2,18 +2,18 @@ push!(LOAD_PATH,"../src/")
 
 using Documenter
 
-using HawkesProcesses ; global const HP = HawkesProcesses
+using HawkesSimulator ; global const H = HawkesSimulator
 
-DocMeta.setdocmeta!(HawkesProcesses, :DocTestSetup, :(using HawkesProcesses); recursive=true)
+DocMeta.setdocmeta!(HawkesSimulator, :DocTestSetup, :(using HawkesSimulator); recursive=true)
 
 makedocs(;
     modules=[HawkesProcesses],
     authors="Dylan Festa <dylan.festa@gmail.com>",
-    repo="https://github.com/dylanfesta/HawkesProcesses.jl/blob/{commit}{path}#{line}",
-    sitename="HawkesProcesses.jl",
+    repo="https://github.com/dylanfesta/HawkesSimulator.jl/blob/{commit}{path}#{line}",
+    sitename="HawkesSimulator.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://dylanfesta.github.io/HawkesProcesses.jl",
+        canonical="https://dylanfesta.github.io/HawkesSimulator.jl",
         assets=String[],
     ),
     pages=[
@@ -22,6 +22,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/dylanfesta/HawkesProcesses.jl",
+    repo="github.com/dylanfesta/HawkesSimulator.jl",
     devbranch="main",
 )
