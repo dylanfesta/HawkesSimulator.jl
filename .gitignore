@@ -2,7 +2,8 @@
 *.jl.cov
 *.jl.mem
 /Manifest.toml
-*Manifest.toml
+Manifest.toml
+
 /docs/build/
 
 *.directory
