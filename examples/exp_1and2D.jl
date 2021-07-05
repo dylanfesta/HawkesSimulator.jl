@@ -141,7 +141,7 @@ cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
 # and I compare the two.
 
 function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer time
-  k1,k2 = 2 , 0.1
+  k1,k2 = 2 , 0.01
   myτmax = Tmax * k1
   dt *= k2
   mytaus = H.get_times(dt,myτmax)
@@ -149,10 +149,11 @@ function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer tim
   myfreq = H.get_frequencies_centerzero(dt,myτmax)
   gfou = myw[1,1] .* H.interaction_kernel_fourier.(myfreq,Ref(pop)) |> ifftshift
   ffou = let r=ratefou
-    covf(g) = r*(g+g'-g*g')/((1-g)*(1-g'))
+    covf(g) = r/((1-g)*(1-g'))
     map(covf,gfou)
   end
   retf = real.(ifft(ffou)) ./ dt
+  retf[1] *= dt  # first element is rate
   return mytaus[1:nkeep],retf[1:nkeep]
 end
 
@@ -161,7 +162,7 @@ end
 function doplot()
   plt = plot(xlabel="time delay (s)",ylabel="Covariance density")
   plot!(plt,mytaus[2:end], cov_num[2:end] ; linewidth=3, label="simulation" )
-  plot!(plt,taush,covfou; label="analytic",linewidth=3,linestyle=:dash)
+  plot!(plt,taush[2:end],covfou[2:end]; label="analytic",linewidth=3,linestyle=:dash)
   return plt
 end
 doplot()
@@ -227,7 +228,7 @@ doplot()
 
 function four_high_res(dt::Real,Tmax::Real) 
   k1 = 2
-  k2 = 0.2
+  k2 = 0.005
   myτmax,mydt = Tmax * k1, dt*k2
   mytaus = H.get_times(mydt,myτmax)
   nkeep = div(length(mytaus),k1)
@@ -240,10 +241,11 @@ function four_high_res(dt::Real,Tmax::Real)
   Mt = similar(M,Float64)
   for i in eachindex(myfreq)
     G = getindex.(G_omega,i)
-    M[:,:,i] = (I-G)\D*(G+G'-G*G')/(I-G') 
+    M[:,:,i] = (I-G)\D/(I-G') 
   end
   for i in 1:2,j in 1:2
-    Mt[i,j,:] = real.(ifft(M[i,j,:])) ./ mydt
+    Mt[i,j,:] = real.(ifft(M[i,j,:]))
+    Mt[i,j,2:end] ./= mydt # diagonal of t=0 contains the rate
   end
   return mytaus[1:nkeep],Mt[:,:,1:nkeep]
 end
@@ -253,7 +255,7 @@ taush,Cfou=four_high_res(mydt,myτmax)
 function oneplot(i,j)
   plt=plot(xlabel="time delay (s)",ylabel="Covariance density",title="cov $i - $j")
   plot!(plt,mytaus[2:end],cov_num[i,j,2:end] ; linewidth = 3, label="simulation")
-  plot!(plt,taush,Cfou[i,j,:]; linestyle=:dash, linewidth=3, label="analytic")
+  plot!(plt,taush[2:end],Cfou[i,j,2:end]; linestyle=:dash, linewidth=3, label="analytic")
 end
 
 # 1

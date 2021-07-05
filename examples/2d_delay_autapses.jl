@@ -108,7 +108,7 @@ doplot()
 
 function four_high_res(dt::Real,Tmax::Real) 
   k1 = 2
-  k2 = 0.2
+  k2 = 0.01
   myτmax,mydt = Tmax * k1, dt*k2
   mytaus = H.get_times(mydt,myτmax)
   nkeep = div(length(mytaus),k1)
@@ -126,10 +126,11 @@ function four_high_res(dt::Real,Tmax::Real)
   Mt = similar(M,Float64)
   for i in eachindex(myfreq)
     G = getindex.(G_omega,i)
-    M[:,:,i] = (I-G)\D*(G+G'-G*G')/(I-G') 
+    M[:,:,i] = (I-G)\D/(I-G') 
   end
   for i in 1:2,j in 1:2
-    Mt[i,j,:] = real.(ifft(M[i,j,:])) ./ mydt
+    Mt[i,j,:] = real.(ifft(M[i,j,:]))
+    Mt[i,j,2:end] ./= mydt
   end
   return mytaus[1:nkeep],Mt[:,:,1:nkeep]
 end
@@ -153,8 +154,7 @@ oneplot(2,1)
 # 4
 oneplot(2,2)
 
-# Seems that there is an unpleasant boundary artifact for the first few timesteps.
-# There is also a bit of overshooting, I have no idea why.
+# Perfect match!
 
 ##
 # ## Visualize raster plot 

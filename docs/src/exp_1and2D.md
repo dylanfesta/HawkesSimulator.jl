@@ -4,7 +4,8 @@ EditURL = "https://github.com/dylanfesta/HawkesSimulator.jl/blob/master/examples
 
 # 1D and 2D Hawkes processes with exponential kernel
 
-In this example, I simulate either a 1D or a 2D Hawkes process, with a negative exponential interaction kernel
+In this example, I simulate first a 1D self-exciting Hawkes process and then a 2D one.
+The interaction kernel is an exponentially decaying function, defined as:
 
 ```math
 g(t) = H(t) \,  \frac{1}{\tau} \, \exp\left(- \frac{t}{\tau} \right)
@@ -12,7 +13,8 @@ g(t) = H(t) \,  \frac{1}{\tau} \, \exp\left(- \frac{t}{\tau} \right)
 
 where $H(t)$ is the Heaviside function: zero for $t<0$, one for $t\geq 0$.
 
-Kernels are always normalized so that their integral is 1.
+Note that Kernels are always normalized so that their integral
+between $-\infty$ and $+\infty$ is 1.
 
 ## Initialization
 
@@ -29,7 +31,7 @@ using HawkesSimulator; const global H = HawkesSimulator
 
 """
     onedmat(x::R) where R
-Generates a Matrix{R} with the specified element inside of it
+Generates a 1-by-1 Matrix{R} that contains `x` as only element
 """
 function onedmat(x::R) where R
   ret=Matrix{R}(undef,1,1)
@@ -40,27 +42,29 @@ end;
 #
 ```
 
-First I define the kernel, and a self interaction weight
-The interaction kernel is defined by a corresponding population type.
-`mytau` is the parameter $\tau$. `myw` is a scaling factor (the weight of the
+First I define the kernel, and the self-interaction weight.
+The kernel is defined through a "Population": all neurons in the same
+population have the same kernel.
+
+`myw` is a scaling factor (the weight of the
 autaptic connection). The baseline rate is given by `myinput`
 
 ```@example exp_1and2D
-mytau = 0.5
-myw = onedmat(0.85) # thie needs to be a matrix
+mytau = 0.5  # kernel time constant
+myw = onedmat(0.85) # weight: this needs to be a matrix
 myinput = [0.7,] # this needs to be a vector
 pop = H.PopulationExp(mytau);
 nothing #hide
 ```
 
-This is the plot of the (self) interaction kernal
-(before it is scaled by `myw`)
+This is the plot of the (self) interaction kernel
+(before  the scaling by `myw`)
 
 ```@example exp_1and2D
 function doplot() # Julia likes functions
   ts = range(-1.0,5;length=150)
-  y = [H.interaction_kernel(_t,pop) for _t in ts]
-  plot(ts,y ; linewidth=3,leg=false,xlabel="time (s)",
+  y = map(t->H.interaction_kernel(t,pop) , ts )
+  plot(ts , y ; linewidth=3,leg=false,xlabel="time (s)",
       ylabel="interaction kernel")
 end
 
@@ -76,10 +80,10 @@ nothing #hide
 ```
 
 ## Simulation
-The length of the simulation is expressed as a total number of spikes
+The length of the simulation is measured by the total number of spikes
 here called `n_spikes`.
 The function `clear_trains!(...)` is used to store older spikes as history and
-let them be ignored by the kernels
+let them be ignored by the kernels.
 
 ```@example exp_1and2D
 function run_simulation!(netw,nspikes)
@@ -147,8 +151,10 @@ end;
 
 ## Covariance density
 
-Now the covariance density
-first, compute it numerically for a reasonable time range
+TODO : write definition
+
+I compute the covariance density it numerically.
+The time inteval `mydt` should not be too small.
 
 ```@example exp_1and2D
 mytrain = pops.trains_history[1]
@@ -161,12 +167,12 @@ cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
 #
 ```
 
-now compute it analytically, at higher resolution
-and compare the two.
+Now I compute the covariance density analytically, at higher resolution,
+and I compare the two.
 
 ```@example exp_1and2D
 function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer time
-  k1,k2 = 2 , 0.1
+  k1,k2 = 2 , 0.01
   myτmax = Tmax * k1
   dt *= k2
   mytaus = H.get_times(dt,myτmax)
@@ -174,10 +180,11 @@ function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer tim
   myfreq = H.get_frequencies_centerzero(dt,myτmax)
   gfou = myw[1,1] .* H.interaction_kernel_fourier.(myfreq,Ref(pop)) |> ifftshift
   ffou = let r=ratefou
-    covf(g) = r*(g+g'-g*g')/((1-g)*(1-g'))
+    covf(g) = r/((1-g)*(1-g'))
     map(covf,gfou)
   end
   retf = real.(ifft(ffou)) ./ dt
+  retf[1] *= dt  # first element is rate
   return mytaus[1:nkeep],retf[1:nkeep]
 end
 
@@ -186,7 +193,7 @@ end
 function doplot()
   plt = plot(xlabel="time delay (s)",ylabel="Covariance density")
   plot!(plt,mytaus[2:end], cov_num[2:end] ; linewidth=3, label="simulation" )
-  plot!(plt,taush,covfou; label="analytic",linewidth=3,linestyle=:dash)
+  plot!(plt,taush[2:end],covfou[2:end]; label="analytic",linewidth=3,linestyle=:dash)
   return plt
 end
 doplot()
@@ -198,7 +205,7 @@ doplot()
 #
 ```
 
-## Initialize the system in 2D
+## Same results, but in a 2D system
 
 ```@example exp_1and2D
 myτ = 1/2.33
@@ -213,7 +220,8 @@ nothing #hide
 
 ## Start the simulation
 the function `run_simulation!(...)` has been defined above
-Note that `n_spikes` is the total between **all** units in the system.
+Note that `n_spikes` is the total number of spikes
+among **all** units in the system.
 
 ```@example exp_1and2D
 n_spikes = 500_000
@@ -223,7 +231,7 @@ nothing #hide
 ```
 
 ## Check the rates
-The analytic rate is from  Eq between 6 and  7 in Hawkes 1976
+The analytic rate is from  Eq between 6 and  7 in Hawkes 1971
 
 ```@example exp_1and2D
 num_rates = H.numerical_rates(ps1)
@@ -263,12 +271,12 @@ end
 doplot()
 ```
 
-The analytic solution is eq 12 from Hawkes 1976
+The analytic solution is eq 12 from Hawkes 1971
 
 ```@example exp_1and2D
 function four_high_res(dt::Real,Tmax::Real)
   k1 = 2
-  k2 = 0.2
+  k2 = 0.005
   myτmax,mydt = Tmax * k1, dt*k2
   mytaus = H.get_times(mydt,myτmax)
   nkeep = div(length(mytaus),k1)
@@ -281,10 +289,11 @@ function four_high_res(dt::Real,Tmax::Real)
   Mt = similar(M,Float64)
   for i in eachindex(myfreq)
     G = getindex.(G_omega,i)
-    M[:,:,i] = (I-G)\D*(G+G'-G*G')/(I-G')
+    M[:,:,i] = (I-G)\D/(I-G')
   end
   for i in 1:2,j in 1:2
-    Mt[i,j,:] = real.(ifft(M[i,j,:])) ./ mydt
+    Mt[i,j,:] = real.(ifft(M[i,j,:]))
+    Mt[i,j,2:end] ./= mydt # diagonal of t=0 contains the rate
   end
   return mytaus[1:nkeep],Mt[:,:,1:nkeep]
 end
@@ -294,7 +303,7 @@ taush,Cfou=four_high_res(mydt,myτmax)
 function oneplot(i,j)
   plt=plot(xlabel="time delay (s)",ylabel="Covariance density",title="cov $i - $j")
   plot!(plt,mytaus[2:end],cov_num[i,j,2:end] ; linewidth = 3, label="simulation")
-  plot!(plt,taush,Cfou[i,j,:]; linestyle=:dash, linewidth=3, label="analytic")
+  plot!(plt,taush[2:end],Cfou[i,j,2:end]; linestyle=:dash, linewidth=3, label="analytic")
 end
 ```
 

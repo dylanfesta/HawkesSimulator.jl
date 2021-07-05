@@ -118,7 +118,7 @@ cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
 # now compute it analytically, at higher resolution, and compare the two
 
 function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer time
-  k1,k2 = 2 , 0.1
+  k1,k2 = 2 , 0.01
   myτmax = Tmax * k1
   dt *= k2
   mytaus = H.get_times(dt,myτmax)
@@ -126,10 +126,11 @@ function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer tim
   myfreq = H.get_frequencies_centerzero(dt,myτmax)
   gfou = myw[1,1] .* H.interaction_kernel_fourier.(myfreq,Ref(pop)) |> ifftshift
   ffou = let r=ratefou
-    covf(g) = r*(g+g'-g*g')/((1-g)*(1-g'))
+    covf(g) = r/((1-g)*(1-g'))
     map(covf,gfou)
   end
-  retf = real.(ifft(ffou)) ./ dt
+  retf = real.(ifft(ffou))
+  retf[2:end] ./= dt # first element is rate
   return mytaus[1:nkeep],retf[1:nkeep]
 end
 
@@ -138,7 +139,7 @@ taush,covfou=four_high_res(mydt,myτmax)
 function doplot()
   plt = plot(xlabel="time delay (s)",ylabel="Covariance density")
   plot!(plt,mytaus[2:end], cov_num[2:end] ; linewidth=3, label="numerical" )
-  return plot!(plt,taush[1:end],covfou[1:end]; label="analytic",linewidth=3,linestyle=:dash)
+  return plot!(plt,taush[2:end],covfou[2:end]; label="analytic",linewidth=3,linestyle=:dash)
 end
 
 doplot()
