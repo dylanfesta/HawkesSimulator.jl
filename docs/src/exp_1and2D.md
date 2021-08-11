@@ -142,13 +142,8 @@ function get_insta_rate(t)
 end
 function plot_instarate(tlims=(2000,2020))
   tplot = range(tlims...;length=100)
-````
-
-let's add the exact spiketimes
-
-````@example exp_1and2D
   _train = pops.trains_history[1]
-  tspk = filter(t-> tlims[1]<=t<=tlims[2],_train)
+  tspk = filter(t-> tlims[1]<=t<=tlims[2],_train) # add the exact spiketimes for cleaner plot
   tplot = sort(vcat(tplot,tspk,tspk .- 1E-4))
   plt=plot(xlabel="time (s)",ylabel="instantaneous rate")
   plot!(plt,tplot,get_insta_rate.(tplot);linewidth=2,color=:black)
