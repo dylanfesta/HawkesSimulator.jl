@@ -19,7 +19,6 @@ between $-\infty$ and $+\infty$ is 1.
 ## Initialization
 
 ````@example exp_1and2D
-ENV["GKSwstype"] = "100"
 using LinearAlgebra,Statistics,StatsBase,Distributions
 using Plots,NamedColors ; theme(:default) ; gr()
 using FFTW
