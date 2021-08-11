@@ -20,7 +20,7 @@ between $-\infty$ and $+\infty$ is 1.
 
 ````@example exp_1and2D
 using LinearAlgebra,Statistics,StatsBase,Distributions
-using Plots,NamedColors ; theme(:default) #; plotlyjs()
+using Plots,NamedColors ; theme(:default) ; plotly()
 using FFTW
 
 using ProgressMeter
@@ -102,6 +102,7 @@ end
 n_spikes = 80_000
 Tmax = run_simulation!(ntw,n_spikes)
 avg_rate = n_spikes/Tmax;
+
 #
 ````
 
