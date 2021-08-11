@@ -20,7 +20,7 @@ between $-\infty$ and $+\infty$ is 1.
 
 ````@example exp_1and2D
 using LinearAlgebra,Statistics,StatsBase,Distributions
-using Plots,NamedColors ; theme(:default) ; plotly()
+using Plots,NamedColors ; theme(:default) ; gr()
 using FFTW
 
 using ProgressMeter
