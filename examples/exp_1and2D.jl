@@ -16,7 +16,7 @@ between $-\infty$ and $+\infty$ is 1.
 
 # ## Initialization
 using LinearAlgebra,Statistics,StatsBase,Distributions
-using Plots,NamedColors ; theme(:default) ; plotly()
+using Plots,NamedColors ; theme(:default) ; gr()
 using FFTW
 
 using ProgressMeter
