@@ -86,14 +86,15 @@ function run_simulation!(netw,nspikes)
 end
 
 n_spikes = 80_000
-Tmax = run_simulation!(ntw,n_spikes);
+Tmax = run_simulation!(ntw,n_spikes)
+avg_rate = n_spikes/Tmax;
 ##
 # ## Visualize raster plot of the events
 
 # the raster plot shows some correlation between the neural activities
 # neuron one (lower row) excites neuron two (upper row)
 
-function doplot(tlims = (3000.,3100.) )
+function rasterplot(tlims = (2000.,2020.) )
   _train = pops.trains_history[1]
   plt=plot()
   train = filter(t-> tlims[1]< t < tlims[2],_train)
@@ -103,11 +104,46 @@ function doplot(tlims = (3000.,3100.) )
   return plot!(plt,ylims=(0.0,0.2),xlabel="time (s)")
 end
 
-doplot()
+rasterplot()
 
 # event times are always stored in `pops.trains_history`
 
 ##
+# ## Plot the instantaneous rate
+
+#=
+This is the probability of a spike given the past activity up until that 
+moment. It is usually denoted by $\lambda^*(t)$.
+=#
+
+function get_insta_rate(t)
+  _train = pops.trains_history[1]
+  myinput[1] + H.interaction(t,_train,myw[1],pops.pop,false)
+end
+function plot_instarate(tlims=(2000,2020))
+  tplot = range(tlims...;length=100) 
+  # let's add the exact spiketimes
+  _train = pops.trains_history[1]
+  tspk = filter(t-> tlims[1]<=t<=tlims[2],_train)
+  tplot = sort(vcat(tplot,tspk,tspk .- 1E-4))
+  plt=plot(xlabel="time (s)",ylabel="instantaneous rate")
+  plot!(plt,tplot,get_insta_rate.(tplot);linewidth=2,color=:black)
+  scatter!(tspk,get_insta_rate.(tspk);leg=false)
+  plot!(plt,tplot, fill(avg_rate,length(tplot)), color=:red,linestyle=:dash)
+end
+plot_instarate()
+
+# ## Plot the total event counts
+function plot_counts(tlims=(0.,1000.))
+  tplot = range(tlims...;length=100)
+  _train = pops.trains_history[1]
+  nevents(tnow::Real) = count(t-> t <= tnow,_train)
+  plt=plot(xlabel="time (s)",ylabel="number of events",leg=false)
+  plot!(plt,tplot,nevents.(tplot),color=:black,linewidth=2)
+  plot!(plt,tplot , tplot .* avg_rate,color=:red,linestyle=:dash)
+end
+plot_counts()
+
 # ## Rate
 # Now I compare the numerical rate with the analytic solution, that used the Fourier transform 
 

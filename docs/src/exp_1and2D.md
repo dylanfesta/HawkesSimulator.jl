@@ -18,7 +18,7 @@ between $-\infty$ and $+\infty$ is 1.
 
 ## Initialization
 
-```@example exp_1and2D
+````@example exp_1and2D
 using LinearAlgebra,Statistics,StatsBase,Distributions
 using Plots,NamedColors ; theme(:default) #; plotlyjs()
 using FFTW
@@ -40,7 +40,7 @@ function onedmat(x::R) where R
 end;
 
 #
-```
+````
 
 First I define the kernel, and the self-interaction weight.
 The kernel is defined through a "Population": all neurons in the same
@@ -49,18 +49,18 @@ population have the same kernel.
 `myw` is a scaling factor (the weight of the
 autaptic connection). The baseline rate is given by `myinput`
 
-```@example exp_1and2D
+````@example exp_1and2D
 mytau = 0.5  # kernel time constant
 myw = onedmat(0.85) # weight: this needs to be a matrix
 myinput = [0.7,] # this needs to be a vector
 pop = H.PopulationExp(mytau);
 nothing #hide
-```
+````
 
 This is the plot of the (self) interaction kernel
 (before  the scaling by `myw`)
 
-```@example exp_1and2D
+````@example exp_1and2D
 function doplot() # Julia likes functions
   ts = range(-1.0,5;length=150)
   y = map(t->H.interaction_kernel(t,pop) , ts )
@@ -69,15 +69,15 @@ function doplot() # Julia likes functions
 end
 
 doplot()
-```
+````
 
 Now I build the network
 
-```@example exp_1and2D
+````@example exp_1and2D
 pops = H.PopulationState(pop,myinput)
 ntw = H.InputNetwork(pops,[pops,],[myw,]);
 nothing #hide
-```
+````
 
 ## Simulation
 The length of the simulation is measured by the total number of spikes
@@ -85,7 +85,7 @@ here called `n_spikes`.
 The function `clear_trains!(...)` is used to store older spikes as history and
 let them be ignored by the kernels.
 
-```@example exp_1and2D
+````@example exp_1and2D
 function run_simulation!(netw,nspikes)
   t_now = 0.0
   H.reset!(netw) # clear spike trains etc
@@ -100,17 +100,18 @@ function run_simulation!(netw,nspikes)
 end
 
 n_spikes = 80_000
-Tmax = run_simulation!(ntw,n_spikes);
+Tmax = run_simulation!(ntw,n_spikes)
+avg_rate = n_spikes/Tmax;
 #
-```
+````
 
 ## Visualize raster plot of the events
 
 the raster plot shows some correlation between the neural activities
 neuron one (lower row) excites neuron two (upper row)
 
-```@example exp_1and2D
-function doplot(tlims = (3000.,3100.) )
+````@example exp_1and2D
+function rasterplot(tlims = (2000.,2020.) )
   _train = pops.trains_history[1]
   plt=plot()
   train = filter(t-> tlims[1]< t < tlims[2],_train)
@@ -120,25 +121,67 @@ function doplot(tlims = (3000.,3100.) )
   return plot!(plt,ylims=(0.0,0.2),xlabel="time (s)")
 end
 
-doplot()
-```
+rasterplot()
+````
 
 event times are always stored in `pops.trains_history`
 
-```@example exp_1and2D
+````@example exp_1and2D
 #
-```
+````
+
+## Plot the instantaneous rate
+
+This is the probability of a spike given the past activity up until that
+moment. It is usually denoted by $\lambda^*(t)$.
+
+````@example exp_1and2D
+function get_insta_rate(t)
+  _train = pops.trains_history[1]
+  myinput[1] + H.interaction(t,_train,myw[1],pops.pop,false)
+end
+function plot_instarate(tlims=(2000,2020))
+  tplot = range(tlims...;length=100)
+````
+
+let's add the exact spiketimes
+
+````@example exp_1and2D
+  _train = pops.trains_history[1]
+  tspk = filter(t-> tlims[1]<=t<=tlims[2],_train)
+  tplot = sort(vcat(tplot,tspk,tspk .- 1E-4))
+  plt=plot(xlabel="time (s)",ylabel="instantaneous rate")
+  plot!(plt,tplot,get_insta_rate.(tplot);linewidth=2,color=:black)
+  scatter!(tspk,get_insta_rate.(tspk);leg=false)
+  plot!(plt,tplot, fill(avg_rate,length(tplot)), color=:red,linestyle=:dash)
+end
+plot_instarate()
+````
+
+## Plot the total event counts
+
+````@example exp_1and2D
+function plot_counts(tlims=(0.,1000.))
+  tplot = range(tlims...;length=100)
+  _train = pops.trains_history[1]
+  nevents(tnow::Real) = count(t-> t <= tnow,_train)
+  plt=plot(xlabel="time (s)",ylabel="number of events",leg=false)
+  plot!(plt,tplot,nevents.(tplot),color=:black,linewidth=2)
+  plot!(plt,tplot , tplot .* avg_rate,color=:red,linestyle=:dash)
+end
+plot_counts()
+````
 
 ## Rate
 Now I compare the numerical rate with the analytic solution, that used the Fourier transform
 
-```@example exp_1and2D
+````@example exp_1and2D
 ratenum = H.numerical_rates(pops)[1]
-```
+````
 
 this is the general equation for rate in a self-excting Hawkes process, from Hawkes 1976
 
-```@example exp_1and2D
+````@example exp_1and2D
 ratefou = let gfou0 = myw[1,1] * H.interaction_kernel_fourier(0,pop)
   myinput[1]/(1-real(gfou0))
 end;
@@ -147,7 +190,7 @@ end;
 @info "Mean rate -  numerical $(round(ratenum;digits=2)), analytic  $(round(ratefou;digits=2))"
 
 #
-```
+````
 
 ## Covariance density
 
@@ -156,7 +199,7 @@ TODO : write definition
 I compute the covariance density it numerically.
 The time inteval `mydt` should not be too small.
 
-```@example exp_1and2D
+````@example exp_1and2D
 mytrain = pops.trains_history[1]
 mydt = 0.1
 myτmax = 25.0
@@ -165,12 +208,12 @@ ntaus = length(mytaus)
 cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
 
 #
-```
+````
 
 Now I compute the covariance density analytically, at higher resolution,
 and I compare the two.
 
-```@example exp_1and2D
+````@example exp_1and2D
 function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer time
   k1,k2 = 2 , 0.01
   myτmax = Tmax * k1
@@ -197,17 +240,17 @@ function doplot()
   return plt
 end
 doplot()
-```
+````
 
 1D system completed !
 
-```@example exp_1and2D
+````@example exp_1and2D
 #
-```
+````
 
 ## Same results, but in a 2D system
 
-```@example exp_1and2D
+````@example exp_1and2D
 myτ = 1/2.33
 mywmat = [ 0.31   0.3
            0.9  0.15 ]
@@ -216,24 +259,24 @@ p1 = H.PopulationExp(myτ)
 ps1 = H.PopulationState(p1,myin)
 ntw = H.InputNetwork(ps1,[ps1,],[mywmat,]);
 nothing #hide
-```
+````
 
 ## Start the simulation
 the function `run_simulation!(...)` has been defined above
 Note that `n_spikes` is the total number of spikes
 among **all** units in the system.
 
-```@example exp_1and2D
+````@example exp_1and2D
 n_spikes = 500_000
 
 Tmax = run_simulation!(ntw,n_spikes);
 nothing #hide
-```
+````
 
 ## Check the rates
 The analytic rate is from  Eq between 6 and  7 in Hawkes 1971
 
-```@example exp_1and2D
+````@example exp_1and2D
 num_rates = H.numerical_rates(ps1)
 myspikes_both = ps1.trains_history
 
@@ -246,13 +289,13 @@ end
 @info "Analytic rates are $(round.(ratefou;digits=2)) Hz"
 
 #
-```
+````
 
 ## Covariance density
 
 there are 4 combinations, therefore I will compare 4 lines.
 
-```@example exp_1and2D
+````@example exp_1and2D
 mydt = 0.1
 myτmax = 15.0
 mytaus = H.get_times(mydt,myτmax)
@@ -269,11 +312,11 @@ function doplot()
 end
 
 doplot()
-```
+````
 
 The analytic solution is eq 12 from Hawkes 1971
 
-```@example exp_1and2D
+````@example exp_1and2D
 function four_high_res(dt::Real,Tmax::Real)
   k1 = 2
   k2 = 0.005
@@ -305,31 +348,31 @@ function oneplot(i,j)
   plot!(plt,mytaus[2:end],cov_num[i,j,2:end] ; linewidth = 3, label="simulation")
   plot!(plt,taush[2:end],Cfou[i,j,2:end]; linestyle=:dash, linewidth=3, label="analytic")
 end
-```
+````
 
 1
 
-```@example exp_1and2D
+````@example exp_1and2D
 oneplot(1,1)
-```
+````
 
 2
 
-```@example exp_1and2D
+````@example exp_1and2D
 oneplot(1,2)
-```
+````
 
 3
 
-```@example exp_1and2D
+````@example exp_1and2D
 oneplot(2,1)
-```
+````
 
 4
 
-```@example exp_1and2D
+````@example exp_1and2D
 oneplot(2,2)
-```
+````
 
 **THE END**
 
