@@ -9,8 +9,6 @@ using Random
 Random.seed!(0)
 
 push!(LOAD_PATH, abspath(@__DIR__,".."))
-using Pkg
-pkg"activate ."
 
 using  HawkesSimulator; const global H = HawkesSimulator
 

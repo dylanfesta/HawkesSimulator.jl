@@ -2,18 +2,15 @@ module HawkesSimulator
 using StatsBase,Statistics,Distributions,LinearAlgebra,Random
 using FFTW
 
-abstract type Population end
-abstract type AbstractInteraction end
-# abstract type PopulationState end
-# abstract type InputNetwork end
+abstract type UnitType end
 
 # for now, inputs are stationary and constant
 # this can be generalized later
 # abstract type ExternalInput end
 
 
-struct PopulationState{P}
-  pop::P
+struct PopulationState{UT <:UnitType}
+  populationtype::UT
   trains::Vector{Vector{Float64}}
   trains_history::Vector{Vector{Float64}}
   input::Vector{Float64} # input only used for external currents 
@@ -23,7 +20,7 @@ Base.getindex(ps::PopulationState,j) = ps.trains[j]
 Base.size(ps::PopulationState) = length(ps.input)
 
 # constructor
-function PopulationState(pop::Population,input::Vector{Float64})
+function PopulationState(pop::UnitType,input::Vector{Float64})
   n = length(input)
   trains = [Float64[] for _ in 1:n ] # empty vectors
   trainsh = [ [0.0,] for _ in 1:n ] 
@@ -47,8 +44,8 @@ function reset!(ps::PopulationState)
 end
 
 # fallback
-interaction_kernel(t::Real,ps::PopulationState) = interaction_kernel(t,ps.pop)
-interaction_kernel_upper(t::Real,ps::PopulationState) = interaction_kernel_upper(t,ps.pop)
+interaction_kernel(t::Real,ps::PopulationState) = interaction_kernel(t,ps.populationtype)
+interaction_kernel_upper(t::Real,ps::PopulationState) = interaction_kernel_upper(t,ps.populationtype)
 
 function numerical_rates(ps::PopulationState)
   return numerical_rate.(ps.trains_history)
@@ -79,19 +76,32 @@ function clear_trains!(ps::PopulationState,tlim=30.0)
   return nothing
 end
 
+abstract type AbstractAutapses end
 
-abstract type AbstracInteraction end
-struct NoInteraction <: AbstractInteraction end
+struct NoAutapses <: AbstractAutapses end
 
-struct InputNetwork{P,I<:AbstractInteraction}
+struct Autapses{UT<:UnitType} <: AbstractAutapses
+  weights_self::Vector{Float64}
+  populationtype::UT
+end
+
+function (aut::Autapses)()
+  return true
+end
+function (aut::NoAutapses)()
+  return false
+end
+
+
+struct InputNetwork{P,AU<:AbstractAutapses}
   postpops::PopulationState
   prepops::Vector{PopulationState{P}}
-  weights::Vector{Matrix{Float64}}  # perhaps implement SparseArrays later
-  autapses::I
+  weights::Vector{Matrix{Float64}}  # if needed, implement SparseArrays later
+  autapses::AU
 end
 
 function InputNetwork(postps,prepops,weights)
-  InputNetwork(postps,prepops,weights,NoInteraction())
+  InputNetwork(postps,prepops,weights,NoAutapses())
 end
 
 function reset!(in::InputNetwork)
@@ -100,15 +110,10 @@ function reset!(in::InputNetwork)
   return nothing
 end
 
-struct Autapses <: AbstractInteraction
-  weights_self::Vector{Float64}
-  popself::Population
-end
-
 
 # input from a single presynaptic neuron and its spike train
-# train, weight, prepop (kernel)
-@inline function interaction(t::R,train::Vector{R},w::R,prepop::Population,upperbound::Bool) where R
+@inline function interaction(t::Real,train::Vector{R},w::R,prepop::UnitType,
+    upperbound::Bool) where R
   if (iszero(w) || isempty(train))
     return zero(R)
   elseif upperbound
@@ -124,33 +129,40 @@ function interaction(t::R,weights_in::AbstractVector{<:R},prepop::PopulationStat
   ret = 0.0
   for (j,w) in enumerate(weights_in)
     train = prepop[j]
-    ret += interaction(t,train,w,prepop.pop,upperbound)
+    ret += interaction(t,train,w,prepop.populationtype,upperbound)
   end
   return ret
 end
 
 # autapses interaction
-function interaction(t::R,pops::PopulationState,aut::NoInteraction,ineu,upperbound) where R
-  return zero(R)
+function interaction(t::R,pops::PopulationState,aut::NoAutapses,ineu,upperbound) where R
+  return 0.0
 end
 
 # autapses interaction : interacts only with its own train
 @inline function interaction(t::R,pops::PopulationState,aut::Autapses,
     ineu::Integer,upperbound::Bool) where R
   train = pops[ineu]
-  return interaction(t,train,aut.weights_self[ineu],aut.popself,upperbound)
+  return interaction(t,train,aut.weights_self[ineu],aut.populationtype,upperbound)
 end
 
 
-function compute_rate(t_now::Real,inp::InputNetwork,ineu::Integer;upperbound::Bool=false)
-  ret = 0.0
+function compute_rate(ext_in::Real,t_now::Real,inp::InputNetwork,
+    ineu::Integer;upperbound::Bool=false)
+  ret = ext_in # starts from external input
   for (w,prepop) in zip(inp.weights,inp.prepops)
     w_in = view(w,ineu,:)
     ret += interaction(t_now,w_in,prepop,upperbound)
   end
+  ret = apply_nonlinearity(ret,inp)
   # add autapses, if they exist
-  ret += interaction(t_now,inp.postpops,inp.autapses,ineu,upperbound)
-  return ret
+  if inp.autapses()
+    ret_aut = interaction(t_now,inp.postpops,inp.autapses,ineu,upperbound)
+    ret_aut = apply_nonlinearity(ret_aut,inp.autapses)
+    return ret+ret_aut
+  else
+    return ret
+  end
 end
 
 
@@ -159,8 +171,8 @@ function hawkes_next_spike(t_now::Real,inp::InputNetwork,ineu::Integer;Tmax=100.
   t_start = t_now
   t = t_now 
   ext = inp.postpops.input[ineu]
-  freq(t) = ext + compute_rate(t,inp,ineu;upperbound=false)
-  freq_up(t) = max( ext + compute_rate(t,inp,ineu;upperbound=true), eps(100.)) # cannot be negative
+  freq(t) = compute_rate(ext,t,inp,ineu;upperbound=false)
+  freq_up(t) = max( compute_rate(ext,t,inp,ineu;upperbound=true), eps(100.)) # cannot be negative
   while (t-t_start)<Tmax # Tmax is upper limit, if rate too low 
     M = freq_up(t)
     Δt = rand(Exponential(inv(M)))
@@ -202,14 +214,49 @@ function dynamics_step!(t_now::Real,input_networks::Vector{<:InputNetwork})
 end
 
 
-### Interaction kernels here
+## Non linearities here
 
+abstract type AbstractNonlinearity end
+
+struct NLIdentity <: AbstractNonlinearity end
+
+@inline function apply_nonlinearity(x::Real,nl::NLIdentity)
+  return x
+end
+
+struct NLRectifiedQuadratic <: AbstractNonlinearity end
+
+@inline function apply_nonlinearity(x::R,nl::NLRectifiedQuadratic) where R<:Real
+  if x <= 0.0
+    return 0.0
+  else 
+    return x*x
+  end
+end
+
+# higher level interface
+@inline function apply_nonlinearity(x,ps::PopulationState)
+  return apply_nonlinearity(x,ps.populationtype.nonlinearity)
+end
+@inline function apply_nonlinearity(x,inp::InputNetwork)
+  return apply_nonlinearity(x,inp.postpops.populationtype.nonlinearity)
+end
+@inline function apply_nonlinearity(x,aut::AbstractAutapses)
+  return apply_nonlinearity(x,aut.populationtype.nonlinearity)
+end
+apply_nonlinearity(x,aut::NoAutapses) = x
+
+
+### Unit types here
 
 # Negative exponential
 
-struct PopulationExp <: Population
+struct PopulationExp{NL<:AbstractNonlinearity} <: UnitType
   τ::Float64
+  nonlinearity::NL
 end
+
+PopulationExp(τ) = PopulationExp(τ,NLIdentity())
 
 @inline function interaction_kernel(t::R,pop::PopulationExp) where R<:Real
   return t < zero(R) ? zero(R) : exp(-t/pop.τ) / pop.τ
@@ -220,10 +267,12 @@ interaction_kernel_fourier(ω::Real,pop::PopulationExp) =  inv( 1 + im*2*π*ω*p
 
 # Alpha-shape with delay
 
-struct PopulationAlphaDelay <: Population
+struct PopulationAlphaDelay{NL<:AbstractNonlinearity} <: UnitType
   τ::Float64
   τdelay::Float64
+  nonlinearity::NL
 end
+PopulationAlphaDelay(τ,τd) = PopulationAlphaDelay(τ,τd,NLIdentity())
 
 @inline function interaction_kernel(t::Real,pop::PopulationAlphaDelay)
   Δt = t - pop.τdelay

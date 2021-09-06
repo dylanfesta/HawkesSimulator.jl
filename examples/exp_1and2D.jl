@@ -119,7 +119,7 @@ moment. It is usually denoted by $\lambda^*(t)$.
 
 function get_insta_rate(t)
   _train = pops.trains_history[1]
-  myinput[1] + H.interaction(t,_train,myw[1],pops.pop,false)
+  myinput[1] + H.interaction(t,_train,myw[1],pops.populationtype,false)
 end
 function plot_instarate(tlims=(2000,2020))
   tplot = range(tlims...;length=100) 
