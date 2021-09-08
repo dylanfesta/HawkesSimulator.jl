@@ -258,7 +258,7 @@ end
 
 PopulationStep(τ) = PopulationStep(τ,NLIdentity())
 
-@inline function interaction_kernel(t::R,pop::PopulationExp) where R<:Real
+@inline function interaction_kernel(t::R,pop::PopulationStep) where R<:Real
   return (t < zero(R)) || (t > pop.τ) ? zero(R) :  inv(pop.τ)
 end
 interaction_kernel_upper(t::Real,pop::PopulationStep) = interaction_kernel(t,pop) + eps(100.0)
