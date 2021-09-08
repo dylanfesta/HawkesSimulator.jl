@@ -247,10 +247,28 @@ end
 apply_nonlinearity(x,aut::NoAutapses) = x
 
 
-### Unit types here
+### Unit types (interaction kernels) here
+
+
+# a cluncky sharp step !
+struct PopulationStep{NL<:AbstractNonlinearity} <: UnitType
+  τ::Float64
+  nonlinearity::NL
+end
+
+PopulationStep(τ) = PopulationStep(τ,NLIdentity())
+
+@inline function interaction_kernel(t::R,pop::PopulationExp) where R<:Real
+  return (t < zero(R)) || (t > pop.τ) ? zero(R) :  inv(pop.τ)
+end
+interaction_kernel_upper(t::Real,pop::PopulationStep) = interaction_kernel(t,pop) + eps(100.0)
+
+function interaction_kernel_fourier(ω::Real,pop::PopulationStep)
+  return error("not done yet")
+end
+
 
 # Negative exponential
-
 struct PopulationExp{NL<:AbstractNonlinearity} <: UnitType
   τ::Float64
   nonlinearity::NL
