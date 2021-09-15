@@ -263,10 +263,13 @@ PopulationStep(τ) = PopulationStep(τ,NLIdentity())
 end
 interaction_kernel_upper(t::Real,pop::PopulationStep) = interaction_kernel(t,pop) + eps(100.0)
 
-function interaction_kernel_fourier(ω::Real,pop::PopulationStep)
-  return error("not done yet")
+@inline function interaction_kernel_fourier(ω::R,pop::PopulationStep) where R<:Real
+  if iszero(ω)
+    return one(R)
+  end
+  cc = 2π*pop.τ*ω
+  return (sin(cc)-2*im*sin(0.5cc)^2)/cc
 end
-
 
 # Negative exponential
 struct PopulationExp{NL<:AbstractNonlinearity} <: UnitType
