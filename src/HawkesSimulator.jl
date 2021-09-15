@@ -186,27 +186,24 @@ function hawkes_next_spike(t_now::Real,inp::InputNetwork,ineu::Integer;Tmax=100.
 end
 
 
-function update_proposals!(t_now::Real,in_net::InputNetwork)
-  nneu = size(in_net.postpops)
-  for ineu in 1:nneu
-    in_net.postpops.spike_proposals[ineu] = hawkes_next_spike(t_now,in_net,ineu) 
-  end
-  return nothing
-end
-
-
 function dynamics_step!(t_now::Real,input_networks::Vector{<:InputNetwork})
   nntws = length(input_networks)
   proposals_best = Vector{Float64}(undef,nntws)
   neuron_best = Vector{Int64}(undef,nntws)
   # for each postsynaptic network, compute spike proposals 
   for (kn,ntw) in enumerate(input_networks)
-    update_proposals!(t_now,ntw)
+    # update proposed next spike for each postsynaptic neuron
+    nneu = size(in_net.postpops)
+    for ineu in 1:nneu
+      in_net.postpops.spike_proposals[ineu] = hawkes_next_spike(t_now,in_net,ineu) 
+    end
+    # best candidate and neuron that fired it for one input network
     (proposals_best[kn], neuron_best[kn]) = findmin(ntw.postpops.spike_proposals) 
   end 
-  # select smallest , update train for that specific neuron
+  # select next spike (best across all input_networks)
   (tbest,kbest) = findmin(proposals_best)
-  # add the spiking time to the neuron that is firing
+  # update train for that specific neuron :
+  # add the spiking time to the neuron that fired it
   best_neu_train = input_networks[kbest].postpops[neuron_best[kbest]]
   push!(best_neu_train,tbest)
   # update t_now 
@@ -249,6 +246,8 @@ apply_nonlinearity(x,aut::NoAutapses) = x
 
 ### Unit types (interaction kernels) here
 
+
+Broadcast.broadcastable(ut::UnitType) = Ref(ut)
 
 # a cluncky sharp step !
 struct PopulationStep{NL<:AbstractNonlinearity} <: UnitType

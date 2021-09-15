@@ -19,11 +19,13 @@ w = [0.31 -0.3
 h = 1.0
 
 
-tau = 1/1.33   # exponential time constant
+tau =  1/1.33   # exponential time constant
 population = H.PopulationExp(tau) #considering single population
 baseline_rate = [h, h]
 popstate = H.PopulationState(population,baseline_rate)
 network = H.InputNetwork(popstate,[popstate],[w])
+
+##
 
 function simulate!(network, num_spikes)
     t_now = 0.0
