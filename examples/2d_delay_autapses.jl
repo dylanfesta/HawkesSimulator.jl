@@ -47,7 +47,7 @@ autapses_pop = H.Autapses(mywautaps,popautaps)
 
 # ## Build the network and run simulation
 
-ntw = H.InputNetwork(pops,[pops,],[mywmat,],autapses_pop) 
+netw = H.InputNetwork(pops,[pops,],[mywmat,],autapses_pop) 
 
 function run_simulation!(netw,nspikes)
   t_now = 0.0

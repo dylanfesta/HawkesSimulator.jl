@@ -8,3 +8,4 @@ Manifest.toml
 
 *.directory
 *.code-workspace
+*.ipynb_*

@@ -27,9 +27,7 @@ Random.seed!(1) # zero does not look as nice :-P
 using HawkesSimulator; const global H = HawkesSimulator
 
 function onedmat(x::Real)
-  ret=Matrix{Float64}(undef,1,1)
-  ret[1,1] = x 
-  return ret
+  return fill(x,(1,1))
 end 
 
 ##
