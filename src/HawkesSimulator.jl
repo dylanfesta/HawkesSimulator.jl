@@ -149,16 +149,16 @@ end
 
 function compute_rate(ext_in::Real,t_now::Real,inp::InputNetwork,
     ineu::Integer;upperbound::Bool=false)
-  ret = ext_in # starts from external input
+  _ret = ext_in # starts from external input
   for (w,prepop) in zip(inp.weights,inp.prepops)
     w_in = view(w,ineu,:)
-    ret += interaction(t_now,w_in,prepop,upperbound)
+    _ret += interaction(t_now,w_in,prepop,upperbound)
   end
-  ret = apply_nonlinearity(ret,inp)
+  ret = apply_nonlinearity(_ret,inp)
   # add autapses, if they exist
   if inp.autapses()
-    ret_aut = interaction(t_now,inp.postpops,inp.autapses,ineu,upperbound)
-    ret_aut = apply_nonlinearity(ret_aut,inp.autapses)
+    _ret_aut = interaction(t_now,inp.postpops,inp.autapses,ineu,upperbound)
+    ret_aut = apply_nonlinearity(_ret_aut,inp.autapses)
     return ret+ret_aut
   else
     return ret
@@ -191,14 +191,14 @@ function dynamics_step!(t_now::Real,input_networks::Vector{<:InputNetwork})
   proposals_best = Vector{Float64}(undef,nntws)
   neuron_best = Vector{Int64}(undef,nntws)
   # for each postsynaptic network, compute spike proposals 
-  for (kn,ntw) in enumerate(input_networks)
+  for (kn,in_ntw) in enumerate(input_networks)
     # update proposed next spike for each postsynaptic neuron
-    nneu = size(in_net.postpops)
+    nneu = size(in_ntw.postpops)
     for ineu in 1:nneu
-      in_net.postpops.spike_proposals[ineu] = hawkes_next_spike(t_now,in_net,ineu) 
+      in_ntw.postpops.spike_proposals[ineu] = hawkes_next_spike(t_now,in_ntw,ineu) 
     end
     # best candidate and neuron that fired it for one input network
-    (proposals_best[kn], neuron_best[kn]) = findmin(ntw.postpops.spike_proposals) 
+    (proposals_best[kn], neuron_best[kn]) = findmin(in_ntw.postpops.spike_proposals) 
   end 
   # select next spike (best across all input_networks)
   (tbest,kbest) = findmin(proposals_best)
@@ -223,7 +223,7 @@ end
 
 struct NLRectifiedQuadratic <: AbstractNonlinearity end
 
-@inline function apply_nonlinearity(x::R,nl::NLRectifiedQuadratic) where R<:Real
+@inline function apply_nonlinearity(x::R,::NLRectifiedQuadratic) where R<:Real
   if x <= 0.0
     return 0.0
   else 
@@ -241,7 +241,7 @@ end
 @inline function apply_nonlinearity(x,aut::AbstractAutapses)
   return apply_nonlinearity(x,aut.populationtype.nonlinearity)
 end
-apply_nonlinearity(x,aut::NoAutapses) = x
+apply_nonlinearity(x,::NoAutapses) = x
 
 
 ### Unit types (interaction kernels) here
