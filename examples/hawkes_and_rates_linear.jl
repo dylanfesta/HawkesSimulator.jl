@@ -28,10 +28,10 @@ function iofunction_inv(r::R,_v0::R,_α::R) where R<:Real
 end
 
 global const v0 = -70.0 # -70
-global const α = 0.3 # 0.3
+global const α = 0.03 # 0.3
 global const taus = [20.0, 10.0].*1E-3
 global const weights = [1.25 -0.65 ; 1.2 -0.5] 
-global const input = [3.0, 3.0] .* 10
+global const input = [50.0, 50.0] 
 global const dt = 0.01E-3
 global const Ttot = 1.0
 global const taus_hawk = [3.0,3.0]
@@ -70,8 +70,8 @@ runtimes,runrates = run_2D_network()
 
 
 ## Now the Hawkes process
-weights_equiv = α .* weights
-inputs_equiv = weights * fill(-α*v0,2) + input
+weights_equiv = α^2 .* weights
+inputs_equiv =  α .* (input .- (α .* weights+I)*fill(v0,2))
 
 pop_e,pop_i = H.PopulationExp(taus_hawk[1]),H.PopulationExp(taus_hawk[2])
 
@@ -111,5 +111,4 @@ rates_hawkes = [ H.numerical_rates(ps_e)[1],H.numerical_rates(ps_i)[1]]
 
 @info "final rates are $(runrates[:,end])"
 @info "Hawkes final rates are $rates_hawkes"
-@info "but actually... $(iofunction.(rates_hawkes,v0,α))"
 ##
