@@ -1,6 +1,7 @@
 module HawkesSimulator
 using StatsBase,Statistics,Distributions,LinearAlgebra,Random
 using FFTW
+using Colors # to save rasters as png
 
 abstract type UnitType end
 
