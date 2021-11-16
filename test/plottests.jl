@@ -1,6 +1,7 @@
 using ProgressMeter
 using Test
 using LinearAlgebra,Statistics,StatsBase,Distributions
+using QuadGK
 using Plots,NamedColors ; theme(:dark) ; plotlyjs()
 using FileIO
 using SparseArrays 
@@ -15,32 +16,15 @@ using  HawkesSimulator; const global H = HawkesSimulator
 
 ##
 
-w = [0.31 -0.3
-    0.9  -0.15]
-h = 1.0
 
+# Vs 2D linear model 
 
-tau =  1/1.33   # exponential time constant
-population = H.PopulationExp(tau) #considering single population
-baseline_rate = [h, h]
-popstate = H.PopulationState(population,baseline_rate)
-network = H.InputNetwork(popstate,[popstate],[w])
 
 ##
 
-function simulate!(network, num_spikes)
-    t_now = 0.0
-    H.reset!(network) # clear spike trains etc
-    @showprogress 1.0 "Running Hawkes process..." for k in 1:num_spikes
-        t_now = H.dynamics_step!(t_now, [network])
-        if k%1_000 == 0
-            H.clear_trains!(network.postpops)
-        end # clearing trains after every 1000 spikes
-    end
-    return t_now
-end
-n_spikes = 200_000
-Tmax = simulate!(network,n_spikes)
+
+##
+
 
 ##
 num_rates = H.numerical_rates(popstate)
@@ -170,3 +154,14 @@ function  plot_excitation(trainsh, tlims=(0,10))
 end
 
 plot_excitation(popstate.trains_history)
+
+
+##
+
+test1 = rand(100)
+deleteat!(test1,(1:5))
+
+test2 = rand(200)
+
+boh = [test1;test2]
+

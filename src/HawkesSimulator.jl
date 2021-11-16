@@ -5,28 +5,41 @@ using Colors # to save rasters as png
 
 abstract type UnitType end
 
+abstract type Connection end
+
+abstract type AbstractNonlinearity end
+struct NLRelu <: AbstractNonlinearity end
+
+struct ConnectionWeights <: Connection
+  weights::Matrix{Float64} # dense weight matrix
+  # might want to add plasticity rules in the future...
+end
+
 # for now, inputs are stationary and constant
 # this can be generalized later
 # abstract type ExternalInput end
 
 
 struct PopulationState{UT <:UnitType}
-  populationtype::UT
+  label::Symbol
+  n::Int64
+  unittype::UT
   trains::Vector{Vector{Float64}}
   trains_history::Vector{Vector{Float64}}
-  input::Vector{Float64} # input only used for external currents 
-  spike_proposals::Vector{Float64}
 end
-Base.getindex(ps::PopulationState,j) = ps.trains[j]
-Base.size(ps::PopulationState) = length(ps.input)
+nneurons(ps::PopulationState) = ps.n
 
 # constructor
-function PopulationState(pop::UnitType,input::Vector{Float64})
-  n = length(input)
-  trains = [Float64[] for _ in 1:n ] # empty vectors
-  trainsh = [ [0.0,] for _ in 1:n ] 
-  spike_proposals = fill(Inf,n)
-  PopulationState(pop,trains,trainsh,input,spike_proposals)
+
+function rand_label()
+  return Symbol(randstring(3))
+end
+function PopulationState(unit_type::UnitType,n::Int64;
+    label::Union{String,Nothing}=nothing)
+  label = something(label,rand_label()) 
+  trains = [Float64[] for _ in 1:n] # empty vectors
+  trainsh = [Float64[] for _ in 1:n] 
+  PopulationState(label,n,unit_type,trains,trainsh)
 end
 
 function reset!(ps::PopulationState)
@@ -36,149 +49,175 @@ function reset!(ps::PopulationState)
     end
   end
   for trainh in ps.trains_history
-    h = length(trainh)
-    if h>2
-      deleteat!(trainh,2:h)
+    if !isempty(trainh)
+      deleteat!(trainh,1:length(trainh))
     end
   end
   return nothing
 end
 
-# fallback
-interaction_kernel(t::Real,ps::PopulationState) = interaction_kernel(t,ps.populationtype)
-interaction_kernel_upper(t::Real,ps::PopulationState) = interaction_kernel_upper(t,ps.populationtype)
-
-function numerical_rates(ps::PopulationState)
-  return numerical_rate.(ps.trains_history)
-end
-function numerical_rate(train::Vector{Float64})
-  Δt = train[end]-train[1]
-  return length(train)/Δt
-end
-
 """
-    clear_trains!(ps::PopulationState,tlim=30.0)
-Moves the spike train older than `tlim` to history. The spikes in history are not considered for 
-interaction. This is necessary to make the dynamics efficient.
+    flush_trains!(ps::PopulationState,Ttrigger::Real;
+        Tflush::Union{Real,Nothing}=nothing)
+ 
+  Spike history is spiketimes that do not interact with the kernel (because too old)      
+  This function compares most recent spike with spike history, if enough time has passed
+  (measured by Ttrigger) it flushes the spiketrain up to Tflush into the history.
 """
-function clear_trains!(ps::PopulationState,tlim=30.0)
-  for ineu in 1:size(ps)
-    train = ps.trains[ineu]
-    trainh = ps.trains_history[ineu]
+function flush_trains!(ps::PopulationState,Ttrigger::Real;
+    Tflush::Union{Real,Nothing}=nothing)
+  Tflush=something(Tflush,0.5*Ttrigger)
+  @assert Tflush < Ttrigger
+  for neu in 1:nneurons(ps)
+    train = ps.trains[neu]
+    history = ps.trains_history[neu]
+    if isempty(train) # no spikes, then nothing to do
+      continue
+    end
     t_last = train[end]
-    th_last = trainh[end]
-    t_elapsed = t_last - th_last
-    if t_elapsed > tlim
-      t_forh = filter(t -> t<t_last-tlim,train)
-      push!(trainh,t_forh...)
-      filter!(t-> t >= t_last-tlim,train)
+    th_last = isempty(history) ? 0.0 : history[end]
+    if (t_last - th_last) > Ttrigger
+      (ps.trains_history[neu],ps.trains[neu]) = 
+        _flush_train!(history,train,t_last+Tflush)
     end
   end
   return nothing
 end
-
-abstract type AbstractAutapses end
-
-struct NoAutapses <: AbstractAutapses end
-
-struct Autapses{UT<:UnitType} <: AbstractAutapses
-  weights_self::Vector{Float64}
-  populationtype::UT
+# does the flushing, returning two (not necessarily new) vectors
+function _flush_train!(history::Vector{R},train::Vector{R},Tflush::R) where R
+  idx = searchsortedfirst(train,Tflush)
+  idx_tohistory = 1:(idx-1)
+  history_new = vcat(history,view(train,idx_tohistory))
+  deleteat!(train,idx_tohistory)
+  return history_new,train
 end
 
-function (aut::Autapses)()
-  return true
-end
-function (aut::NoAutapses)()
-  return false
-end
-
-
-struct InputNetwork{P,AU<:AbstractAutapses}
-  postpops::PopulationState
-  prepops::Vector{PopulationState{P}}
-  weights::Vector{Matrix{Float64}}  # if needed, implement SparseArrays later
-  autapses::AU
-end
-
-function InputNetwork(postps,prepops,weights)
-  InputNetwork(postps,prepops,weights,NoAutapses())
-end
-
-function reset!(in::InputNetwork)
-  reset!(in.postpops)
-  reset!.(in.prepops)
+# withouth other arguments, flushes everything into history!
+function flush_trains!(ps::PopulationState)
+  for neu in 1:nneurons(ps)
+    (ps.trains_history[neu],ps.trains[neu]) = 
+        _flush_train!( ps.trains_history[neu],ps.trains[neu],Inf)
+  end
   return nothing
 end
 
+struct Population{N,PS<:PopulationState,
+    TC<:NTuple{N,Connection},
+    TP<:NTuple{N,PopulationState},
+    NL<:AbstractNonlinearity}
+  state::PS
+  connections::TC
+  pre_states::TP
+  input::Vector{Float64} # input only used for external currents 
+  nonlinearity::NL # nonlinearity if present
+  spike_proposals::Vector{Float64} # allocation (probably useless)
+end
+nneurons(p::Population) = nneurons(p.state)
 
-# input from a single presynaptic neuron and its spike train
-@inline function interaction(t::Real,train::Vector{R},w::R,prepop::UnitType,
-    upperbound::Bool) where R
-  if (iszero(w) || isempty(train))
-    return zero(R)
-  elseif upperbound
-    return  w * mapreduce(tk -> interaction_kernel_upper(t-tk,prepop),+,train)
-  else
-    return w * mapreduce(tk -> interaction_kernel(t-tk,prepop),+,train)
+function Population(state::PopulationState,input::Vector{Float64},
+    (conn_pre::Tuple{C,PS} where {C<:Connection,PS<:PopulationState})...;
+      nonlinearity::AbstractNonlinearity=NLRelu())
+  connections = Tuple(getindex.(conn_pre,1))
+  pre_states = Tuple(getindex.(conn_pre,2))
+  spike_proposals = fill(-Inf,nneurons(state))
+  return Population(state,connections,pre_states,input,nonlinearity,spike_proposals) 
+end
+
+# one population only!
+function Population(state::PopulationState,conn::Connection,input::Vector{Float64}; 
+    nonlinearity::AbstractNonlinearity=NLRelu())
+  return Population(state,input,(conn,state);nonlinearity=nonlinearity)
+end
+
+# recurrent network is just a tuple of (input) populations 
+struct RecurrentNetwork{N,TP<:NTuple{N,Population}}
+  populations::TP
+end
+function reset!(rn::RecurrentNetwork)
+  for pop in rn.populations
+    reset!(pop.state)
   end
+  return nothing
 end
-# input from multiple presynaptic neurons
-# pop-state with multiple trains, multiple weights
-function interaction(t::R,weights_in::AbstractVector{<:R},prepop::PopulationState,
-    upperbound::Bool) where R
-  ret = 0.0
-  for (j,w) in enumerate(weights_in)
-    train = prepop[j]
-    ret += interaction(t,train,w,prepop.populationtype,upperbound)
+@inline function npopulations(ntw::RecurrentNetwork)
+  return length(ntw.populations)
+end
+
+
+function RecurrentNetwork((pops::P where P<:Population)...)
+  RecurrentNetwork(pops)
+end
+# one population simplification
+function RecurrentNetwork(state::PopulationState,conn::Connection,
+    input::Vector{Float64};
+    nonlinearity::AbstractNonlinearity=NLRelu())
+  return RecurrentNetwork(Population(state,conn,input;nonlinearity=nonlinearity))
+end
+# or even simpler constructor
+function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
+    input::Vector{Float64};
+    nonlinearity=NLRelu())
+  return RecurrentNetwork(
+    Population(state,ConnectionWeights(weights),input;
+    nonlinearity=nonlinearity))
+end
+
+
+# input from a single presynaptic neuron and its spike train, with given pre/post weight
+@inline function interaction(t::R,train::Vector{R},w::R,prepop::UnitType) where R
+  return w * mapreduce(tk -> interaction_kernel(t-tk,prepop),+,train)
+end
+@inline function interaction_upperbound(t::R,train::Vector{R},w::R,prepop::UnitType) where R
+  return  w * mapreduce(tk -> interaction_kernel_upper(t-tk,prepop),+,train)
+end
+
+function compute_rate(t_now::Real,external_input::Real,
+    pop::Population, idxneu::Integer)
+  ret = external_input
+  for (conn,pre) in zip(pop.connections,pop.pre_states)
+    weights = conn.weights
+    npre = size(weights,2)
+    for j in 1:npre 
+      wij = weights[idxneu,j]
+      pre_train = pre.trains[j]
+      if ! (iszero(wij) || isempty(pre_train))
+        ret += interaction(t_now,pre_train,wij,pre.unittype)
+      end
+    end
   end
-  return ret
+  return apply_nonlinearity(ret,pop.nonlinearity)
 end
-
-# autapses interaction
-function interaction(t::R,pops::PopulationState,aut::NoAutapses,ineu,upperbound) where R
-  return 0.0
-end
-
-# autapses interaction : interacts only with its own train
-@inline function interaction(t::R,pops::PopulationState,aut::Autapses,
-    ineu::Integer,upperbound::Bool) where R
-  train = pops[ineu]
-  return interaction(t,train,aut.weights_self[ineu],aut.populationtype,upperbound)
-end
-
-
-function compute_rate(ext_in::Real,t_now::Real,inp::InputNetwork,
-    ineu::Integer;upperbound::Bool=false)
-  _ret = ext_in # starts from external input
-  for (w,prepop) in zip(inp.weights,inp.prepops)
-    w_in = view(w,ineu,:)
-    _ret += interaction(t_now,w_in,prepop,upperbound)
+# same as above, but interaction upperbound (for thinning algorithm)
+function compute_rate_upperbound(t_now::Real,external_input::Real,
+    pop::Population, idxneu::Integer)
+  ret = external_input
+  for (conn,pre) in zip(pop.connections,pop.pre_states)
+    weights = conn.weights
+    npre = size(weights,2)
+    for j in 1:npre 
+      wij = weights[idxneu,j]
+      pre_train = pre.trains[j]
+      if ! (iszero(wij) || isempty(pre_train))
+        ret += interaction_upperbound(t_now,pre_train,wij,pre.unittype)
+      end
+    end
   end
-  ret = apply_nonlinearity(_ret,inp)
-  # add autapses, if they exist
-  if inp.autapses()
-    _ret_aut = interaction(t_now,inp.postpops,inp.autapses,ineu,upperbound)
-    ret_aut = apply_nonlinearity(_ret_aut,inp.autapses)
-    return ret+ret_aut
-  else
-    return ret
-  end
+  return apply_nonlinearity(ret,pop.nonlinearity)
 end
-
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
-function hawkes_next_spike(t_now::Real,inp::InputNetwork,ineu::Integer;Tmax=100.0)
+function hawkes_next_spike(t_now::Real,pop::Population,ineu::Integer;Tmax::Real=100.0)
   t_start = t_now
   t = t_now 
-  ext = inp.postpops.input[ineu]
-  freq(t) = compute_rate(ext,t,inp,ineu;upperbound=false)
-  freq_up(t) = max( compute_rate(ext,t,inp,ineu;upperbound=true), eps(100.)) # cannot be negative
+  ext_inp = pop.input[ineu]
+  expdistr=Exponential()
+  freq(t) = compute_rate(t,ext_inp,pop,ineu)
+  freq_up(t) = compute_rate_upperbound(t,ext_inp,pop,ineu)
   while (t-t_start)<Tmax # Tmax is upper limit, if rate too low 
     M = freq_up(t)
-    Δt = rand(Exponential(inv(M)))
+    Δt = rand(expdistr)/M
     t = t+Δt
-    u = rand(Uniform(0,M))
+    u = rand()*M # random between 0 and M
     if u <= freq(t) 
       return t
     end
@@ -187,43 +226,37 @@ function hawkes_next_spike(t_now::Real,inp::InputNetwork,ineu::Integer;Tmax=100.
 end
 
 
-function dynamics_step!(t_now::Real,input_networks::Vector{<:InputNetwork})
-  nntws = length(input_networks)
-  proposals_best = Vector{Float64}(undef,nntws)
-  neuron_best = Vector{Int64}(undef,nntws)
+function dynamics_step!(t_now::Real,ntw::RecurrentNetwork)
+  npops = npopulations(ntw)
+  proposals_best = Vector{Float64}(undef,npops)
+  neuron_best = Vector{Int64}(undef,npops)
   # for each postsynaptic network, compute spike proposals 
-  for (kn,in_ntw) in enumerate(input_networks)
+  for (kn,pop) in enumerate(ntw.populations)
     # update proposed next spike for each postsynaptic neuron
-    nneu = size(in_ntw.postpops)
+    nneu = nneurons(pop)
     for ineu in 1:nneu
-      in_ntw.postpops.spike_proposals[ineu] = hawkes_next_spike(t_now,in_ntw,ineu) 
+      pop.spike_proposals[ineu] = hawkes_next_spike(t_now,pop,ineu) 
     end
     # best candidate and neuron that fired it for one input network
-    (proposals_best[kn], neuron_best[kn]) = findmin(in_ntw.postpops.spike_proposals) 
+    (proposals_best[kn], neuron_best[kn]) = findmin(pop.spike_proposals) 
   end 
   # select next spike (best across all input_networks)
   (tbest,kbest) = findmin(proposals_best)
   # update train for that specific neuron :
   # add the spiking time to the neuron that fired it
-  best_neu_train = input_networks[kbest].postpops[neuron_best[kbest]]
+  best_neu_train = ntw.populations[kbest].state.trains[neuron_best[kbest]]
   push!(best_neu_train,tbest)
   # update t_now 
   return tbest
 end
 
 
-## Non linearities here
+## Nonlinearities here
 
-abstract type AbstractNonlinearity end
-
-struct NLIdentity <: AbstractNonlinearity end
-
-@inline function apply_nonlinearity(x::Real,nl::NLIdentity)
-  return x
+@inline function apply_nonlinearity(x::Real,::NLRelu)
+  return max(x,0.0)
 end
-
 struct NLRectifiedQuadratic <: AbstractNonlinearity end
-
 @inline function apply_nonlinearity(x::R,::NLRectifiedQuadratic) where R<:Real
   if x <= 0.0
     return 0.0
@@ -232,38 +265,18 @@ struct NLRectifiedQuadratic <: AbstractNonlinearity end
   end
 end
 
-# higher level interface
-@inline function apply_nonlinearity(x,ps::PopulationState)
-  return apply_nonlinearity(x,ps.populationtype.nonlinearity)
-end
-@inline function apply_nonlinearity(x,inp::InputNetwork)
-  return apply_nonlinearity(x,inp.postpops.populationtype.nonlinearity)
-end
-@inline function apply_nonlinearity(x,aut::AbstractAutapses)
-  return apply_nonlinearity(x,aut.populationtype.nonlinearity)
-end
-apply_nonlinearity(x,::NoAutapses) = x
-
-
 ### Unit types (interaction kernels) here
 
-
-Broadcast.broadcastable(ut::UnitType) = Ref(ut)
-
 # a cluncky sharp step !
-struct PopulationStep{NL<:AbstractNonlinearity} <: UnitType
+struct KernelStep <: UnitType
   τ::Float64
-  nonlinearity::NL
 end
-
-PopulationStep(τ) = PopulationStep(τ,NLIdentity())
-
-@inline function interaction_kernel(t::R,pop::PopulationStep) where R<:Real
-  return (t < zero(R)) || (t > pop.τ) ? zero(R) :  inv(pop.τ)
+@inline function interaction_kernel(t::R,ker::KernelStep) where R<:Real
+  return (t < zero(R)) || (t > ker.τ) ? zero(R) :  inv(ker.τ)
 end
-interaction_kernel_upper(t::Real,pop::PopulationStep) = interaction_kernel(t,pop) + eps(100.0)
+interaction_kernel_upper(t::Real,pop::KernelStep) = interaction_kernel(t,pop) + eps(100.0)
 
-@inline function interaction_kernel_fourier(ω::R,pop::PopulationStep) where R<:Real
+@inline function interaction_kernel_fourier(ω::R,pop::KernelStep) where R<:Real
   if iszero(ω)
     return one(R)
   end
@@ -272,50 +285,58 @@ interaction_kernel_upper(t::Real,pop::PopulationStep) = interaction_kernel(t,pop
 end
 
 # Negative exponential
-struct PopulationExp{NL<:AbstractNonlinearity} <: UnitType
+struct KernelExp <: UnitType
   τ::Float64
-  nonlinearity::NL
 end
-
-PopulationExp(τ) = PopulationExp(τ,NLIdentity())
-
-@inline function interaction_kernel(t::R,pop::PopulationExp) where R<:Real
-  return t < zero(R) ? zero(R) : exp(-t/pop.τ) / pop.τ
+@inline function interaction_kernel(t::R,ker::KernelExp) where R<:Real
+  return t < zero(R) ? zero(R) : exp(-t/ker.τ) / ker.τ
 end
-interaction_kernel_upper(t::Real,pop::PopulationExp) = interaction_kernel(t,pop) + eps(100.0)
-
-interaction_kernel_fourier(ω::Real,pop::PopulationExp) =  inv( 1 + im*2*π*ω*pop.τ)
+interaction_kernel_upper(t::Real,ker::KernelExp) = interaction_kernel(t,ker) + eps(100.0)
+interaction_kernel_fourier(ω::Real,ker::KernelExp) =  inv( 1 + im*2*π*ω*ker.τ)
 
 # Alpha-shape with delay
 
-struct PopulationAlphaDelay{NL<:AbstractNonlinearity} <: UnitType
+struct KernelAlphaDelay <: UnitType
   τ::Float64
   τdelay::Float64
-  nonlinearity::NL
 end
-PopulationAlphaDelay(τ,τd) = PopulationAlphaDelay(τ,τd,NLIdentity())
 
-@inline function interaction_kernel(t::Real,pop::PopulationAlphaDelay)
-  Δt = t - pop.τdelay
+@inline function interaction_kernel(t::Real,ker::KernelAlphaDelay)
+  Δt = t - ker.τdelay
   if Δt <= 0.0
     return 0.0
   else
-    return Δt/pop.τ^2 * exp(-Δt/pop.τ)
+    return Δt/ker.τ^2 * exp(-Δt/ker.τ)
   end
 end
-@inline function interaction_kernel_upper(t::Real,pop::PopulationAlphaDelay)
-  Δt = t - pop.τdelay
-  if Δt <= pop.τ
-    return  inv(pop.τ*ℯ) + eps(100.)
+@inline function interaction_kernel_upper(t::Real,ker::KernelAlphaDelay)
+  Δt = t - ker.τdelay
+  if Δt <= ker.τ
+    return  inv(ker.τ*ℯ) + eps(100.)
   else
-    return  interaction_kernel(t,pop) + eps(100.0)
+    return  interaction_kernel(t,ker) + eps(100.0)
   end
 end
-
-@inline function interaction_kernel_fourier(ω::Real,pop::PopulationAlphaDelay)
-  return exp(-im*2*π*ω*pop.τdelay) / (1+im*2*π*ω*pop.τ)^2
+@inline function interaction_kernel_fourier(ω::Real,ker::KernelAlphaDelay)
+  return exp(-im*2*π*ω*ker.τdelay) / (1+im*2*π*ω*ker.τ)^2
 end
 
+
+###### mean rates and other measures
+
+function numerical_rates(ps::PopulationState)
+  return numerical_rate.(ps.trains_history)
+end
+function numerical_rates(pop::Population)
+  return numerical_rates(pop.state)
+end
+
+function numerical_rate(train::Vector{Float64};
+    Tstart::Real=0.0,Tend::Real=Inf)
+  Tend = min(Tend,train[end])
+  Δt = Tend - Tstart
+  return length(train)/Δt
+end
 
 ##########################
 ## covariance density
