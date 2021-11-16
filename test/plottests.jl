@@ -2,6 +2,7 @@ using ProgressMeter
 using Test
 using LinearAlgebra,Statistics,StatsBase,Distributions
 using Plots,NamedColors ; theme(:dark) ; plotlyjs()
+using FileIO
 using SparseArrays 
 using BenchmarkTools
 using FFTW
@@ -56,6 +57,24 @@ end
 
 ##
 
+tmp_img = H.draw_spike_raster(network.postpops.trains_history,0.1,80.0;
+  Tstart = 60.0,
+  spike_colors=[colorant"blue",colorant"red"],
+  spike_separator=15,
+  spike_size = 20,
+  background_color=RGB(1.,.9,.7))
+save("/tmp/tmp.png",tmp_img) 
+
+tmp_img = H.draw_spike_raster(repeat(network.postpops.trains_history;outer=3),0.1,80.0;
+  Tstart = 60.0,
+  spike_colors=repeat([colorant"blue",colorant"red"];outer=3),
+  spike_separator=15,
+  spike_size = 30,
+  background_color=RGB(1.,.9,.7))
+save("/tmp/tmp.png",tmp_img) 
+
+
+##
 
 num_neurons = 2
 tau_l = 0.5
