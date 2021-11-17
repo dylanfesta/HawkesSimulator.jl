@@ -238,9 +238,8 @@ rate_analytic = inv(I-mywmat)*myin
 @info "Rates are $(round.(num_rates;digits=2))"
 @info "Analytic rates are $(round.(rate_analytic;digits=2)) Hz"
 
-##
+##    #src
 # ## Covariance density
-
 # there are 4 combinations, therefore I will compare 4 lines.
 
 mydt = 0.1
@@ -248,7 +247,6 @@ myτmax = 15.0
 mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
 cov_num = H.covariance_density_numerical(myspikes_both,mydt,myτmax)
-
 
 function doplot()
   plt=plot(xlabel="time delay (s)",ylabel="Covariance density")

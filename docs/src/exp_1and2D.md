@@ -257,9 +257,9 @@ among **all** units in the system.
 
 ````@example exp_1and2D
 #n_spikes = 500_000
-n_spikes = 1000
+n_spikes = 500_000
 
-Tmax = run_simulation!(ntw,n_spikes,20.0,5.0);
+Tmax = run_simulation!(ntw,n_spikes,100.0,10.0);
 nothing #hide
 ````
 
@@ -278,12 +278,9 @@ rate_analytic = inv(I-mywmat)*myin
 @info "Total duration $(round(Tmax;digits=1)) s"
 @info "Rates are $(round.(num_rates;digits=2))"
 @info "Analytic rates are $(round.(rate_analytic;digits=2)) Hz"
-
-#
 ````
 
 ## Covariance density
-
 there are 4 combinations, therefore I will compare 4 lines.
 
 ````@example exp_1and2D
@@ -292,7 +289,6 @@ myτmax = 15.0
 mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
 cov_num = H.covariance_density_numerical(myspikes_both,mydt,myτmax)
-
 
 function doplot()
   plt=plot(xlabel="time delay (s)",ylabel="Covariance density")
@@ -370,3 +366,4 @@ oneplot(2,2)
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+
