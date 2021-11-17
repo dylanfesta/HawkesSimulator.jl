@@ -123,10 +123,6 @@ rasterplot()
 
 event times are always stored in `pops.trains_history`
 
-````@example exp_1and2D
-#
-````
-
 ## Plot the instantaneous rate
 
 This is the probability of a spike given the past activity up until that
@@ -155,6 +151,9 @@ plot_instarate(popstate)
 
 ## Plot the total event counts
 
+Total number of events as a function of time. It grows linearly, and the
+steepness is pretty much the rate.
+
 ````@example exp_1and2D
 function plot_counts(tlims=(0.,1000.))
   avg_rate = H.numerical_rates(popstate;Tend=Tmax)[1]
@@ -169,7 +168,20 @@ plot_counts()
 ````
 
 ## Rate
-Now I compare the numerical rate with the analytic solution, that used the Fourier transform
+Now I compare the numerical rate with the analytic solution.
+
+The analytic rate corresponds to the stationary solution
+we would have in a linear dynamical system, provided all
+elements are above zero.
+
+```math
+\frac{\mathrm d \mathbf r}{\mathrm d t} = - \mathbf r + W\;r + \mathbf h
+```
+
+Which leads to...
+```math
+r_\infty = (I-W)^{-1} \; \mathbf h
+```
 
 analytic rate expression for linear models
 
@@ -256,7 +268,6 @@ Note that `n_spikes` is the total number of spikes
 among **all** units in the system.
 
 ````@example exp_1and2D
-#n_spikes = 500_000
 n_spikes = 500_000
 
 Tmax = run_simulation!(ntw,n_spikes,100.0,10.0);
