@@ -1,11 +1,13 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
-/Manifest.toml
+
+*/Manifest.toml
 Manifest.toml
 
 /docs/build/
 
 *.directory
 *.code-workspace
-*.ipynb_*
+*.ipynb_checkpoints
+*/*.ipynb_checkpoints

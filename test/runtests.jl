@@ -44,7 +44,7 @@ end
   popstate = H.PopulationState(mykernel,nneus)
   network = H.RecurrentNetwork(popstate,weights,inputs)
 
-  function simulate!(network, num_spikes)
+  function simulate!(network,num_spikes)
     t_now = 0.0
     H.reset!(network) # clear spike trains etc
     for _ in 1:num_spikes

@@ -30,13 +30,10 @@ using HawkesSimulator; const global H = HawkesSimulator
 Generates a 1-by-1 Matrix{R} that contains `x` as only element   
 """
 function onedmat(x::R) where R
-  ret=Matrix{R}(undef,1,1)
-  ret[1,1] = x 
-  return ret
+  return cat(x;dims=2)
 end;
 
-##
-
+## #src
 # First I define the kernel, and the self-interaction weight.
 # The kernel is defined through a "Population": all neurons in the same 
 # population have the same kernel.
@@ -47,47 +44,47 @@ end;
 mytau = 0.5  # kernel time constant
 myw = onedmat(0.85) # weight: this needs to be a matrix
 myinput = [0.7,] # this needs to be a vector
-pop = H.PopulationExp(mytau);
+mykernel = H.KernelExp(mytau);
 
 # This is the plot of the (self) interaction kernel
 # (before  the scaling by `myw`)
 
-function doplot() # Julia likes functions
-  ts = range(-1.0,5;length=150)
-  y = map(t->H.interaction_kernel(t,pop) , ts )
+theplot = let ts = range(-1.0,5;length=150),
+  y = map(t->H.interaction_kernel(t,mykernel) , ts )
   plot(ts , y ; linewidth=3,leg=false,xlabel="time (s)",
-      ylabel="interaction kernel")
-end
+     ylabel="interaction kernel")
+end;
+plot(theplot)
 
-doplot()
+# Now I build the network, using the simplified constructor
 
-# Now I build the network
+popstate = H.PopulationState(mykernel,1)
+ntw = H.RecurrentNetwork(popstate,myw,myinput);
 
-pops = H.PopulationState(pop,myinput)
-ntw = H.InputNetwork(pops,[pops,],[myw,]); 
-
+## #src
 # ## Simulation
 # The length of the simulation is measured by the total number of spikes
-# here called `n_spikes`.  
-# The function `clear_trains!(...)` is used to store older spikes as history and 
-# let them be ignored by the kernels.
+# here called `num_spikes`.  
+# The function `flush_trains!(...)` is used to store older spikes as 
+# history and let them be ignored by the kernels.
+# The time parameters should be regulated based on the kernel shape.
 
-function run_simulation!(netw,nspikes)
+function run_simulation!(network,num_spikes,
+    t_flush_trigger=300.0,t_flush=100.0)
   t_now = 0.0
-  H.reset!(netw) # clear spike trains etc
-  @showprogress 1.0 "Running Hawkes process..." for k in 1:nspikes
-    t_now = H.dynamics_step!(t_now,[netw,])
-    if k%1_000 == 0
-      H.clear_trains!(netw.postpops)
-    end
+  H.reset!(network) # clear spike trains etc
+  @showprogress "Running Hawkes process..." for _ in 1:num_spikes
+    t_now = H.dynamics_step!(t_now,network)
+    H.flush_trains!(network,t_flush_trigger;Tflush=t_flush)
   end
-  H.clear_trains!(netw.postpops,-1.0);
+  H.flush_trains!(network) # flush everything into history
   return t_now
 end
 
-n_spikes = 80_000
+n_spikes = 100_000
 Tmax = run_simulation!(ntw,n_spikes)
-avg_rate = n_spikes/Tmax;
+ratenum = H.numerical_rates(popstate;Tend=Tmax)[1]
+@info "Simulation completed, mean rate $(round(ratenum;digits=2)) Hz"
 
 ##
 # ## Visualize raster plot of the events
@@ -95,8 +92,8 @@ avg_rate = n_spikes/Tmax;
 # the raster plot shows some correlation between the neural activities
 # neuron one (lower row) excites neuron two (upper row)
 
-function rasterplot(tlims = (2000.,2020.) )
-  _train = pops.trains_history[1]
+function rasterplot(tlims = (1100.,1120.) )
+  _train = popstate.trains_history[1]
   plt=plot()
   train = filter(t-> tlims[1]< t < tlims[2],_train)
   nspk = length(train)
@@ -117,26 +114,30 @@ This is the probability of a spike given the past activity up until that
 moment. It is usually denoted by $\lambda^*(t)$.
 =#
 
-function get_insta_rate(t)
-  _train = pops.trains_history[1]
-  myinput[1] + H.interaction(t,_train,myw[1],pops.populationtype,false)
+function get_insta_rate(t,popstate)
+  _train = popstate.trains_history[1]
+  myinput[1] + H.interaction(t,_train,myw[1],popstate.unittype)
 end
-function plot_instarate(tlims=(2000,2020))
+function plot_instarate(popstate,tlims=(1100,1120))
   tplot = range(tlims...;length=100) 
-  _train = pops.trains_history[1]
+  _train = popstate.trains_history[1]
   tspk = filter(t-> tlims[1]<=t<=tlims[2],_train) # add the exact spiketimes for cleaner plot
   tplot = sort(vcat(tplot,tspk,tspk .- 1E-4))
   plt=plot(xlabel="time (s)",ylabel="instantaneous rate")
-  plot!(plt,tplot,get_insta_rate.(tplot);linewidth=2,color=:black)
-  scatter!(tspk,get_insta_rate.(tspk);leg=false)
-  plot!(plt,tplot, fill(avg_rate,length(tplot)), color=:red,linestyle=:dash)
+  plot!(plt,t->get_insta_rate(t,popstate),tplot;linewidth=2,color=:black)
+  scatter!(t->get_insta_rate(t,popstate),tspk;leg=false)
+  avg_rate = H.numerical_rates(popstate;Tend=Tmax)[1]
+  ylim2 = ylims()[2]
+  plot!(plt,tplot, fill(avg_rate,length(tplot)),
+     color=:red,linestyle=:dash,ylims=(0,ylim2))
 end
-plot_instarate()
+plot_instarate(popstate)
 
 # ## Plot the total event counts
 function plot_counts(tlims=(0.,1000.))
+  avg_rate = H.numerical_rates(popstate;Tend=Tmax)[1]
   tplot = range(tlims...;length=100)
-  _train = pops.trains_history[1]
+  _train = popstate.trains_history[1]
   nevents(tnow::Real) = count(t-> t <= tnow,_train)
   plt=plot(xlabel="time (s)",ylabel="number of events",leg=false)
   plot!(plt,tplot,nevents.(tplot),color=:black,linewidth=2)
@@ -147,15 +148,12 @@ plot_counts()
 # ## Rate
 # Now I compare the numerical rate with the analytic solution, that used the Fourier transform 
 
-ratenum = H.numerical_rates(pops)[1]
 
-# this is the general equation for rate in a self-excting Hawkes process, from Hawkes 1976
-ratefou = let gfou0 = myw[1,1] * H.interaction_kernel_fourier(0,pop)
-  myinput[1]/(1-real(gfou0)) 
-end;
+# analytic rate expression for linear models
+rate_analytic = inv(I-myw)*myinput
+rate_analytic = rate_analytic[1] # 1-D , just a scalar
 
-@info "Total duration $(round(Tmax;digits=1)) s"
-@info "Mean rate -  numerical $(round(ratenum;digits=2)), analytic  $(round(ratefou;digits=2))"
+@info "Mean rate -  numerical $(round(ratenum;digits=2)), analytic  $(round(rate_analytic;digits=2))"
 
 ##
 # ## Covariance density
@@ -165,7 +163,7 @@ end;
 # I compute the covariance density it numerically.
 # The time inteval `mydt` should not be too small.
 
-mytrain = pops.trains_history[1]
+mytrain = popstate.trains_history[1]
 mydt = 0.1
 myτmax = 25.0
 mytaus = H.get_times(mydt,myτmax)
@@ -183,8 +181,8 @@ function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer tim
   mytaus = H.get_times(dt,myτmax)
   nkeep = div(length(mytaus),k1)
   myfreq = H.get_frequencies_centerzero(dt,myτmax)
-  gfou = myw[1,1] .* H.interaction_kernel_fourier.(myfreq,Ref(pop)) |> ifftshift
-  ffou = let r=ratefou
+  gfou = myw[1,1] .* H.interaction_kernel_fourier.(myfreq,Ref(popstate)) |> ifftshift
+  ffou = let r=rate_analytic
     covf(g) = r/((1-g)*(1-g'))
     map(covf,gfou)
   end
@@ -211,18 +209,19 @@ myτ = 1/2.33
 mywmat = [ 0.31   0.3 
            0.9  0.15 ]
 myin = [1.0,0.1]           
-p1 = H.PopulationExp(myτ)
-ps1 = H.PopulationState(p1,myin)
-ntw = H.InputNetwork(ps1,[ps1,],[mywmat,]);
+p1 = H.KernelExp(myτ)
+ps1 = H.PopulationState(p1,2)
+ntw = H.RecurrentNetwork(ps1,mywmat,myin)
 
 # ## Start the simulation
 # the function `run_simulation!(...)` has been defined above
 # Note that `n_spikes` is the total number of spikes
 # among **all** units in the system.
 
+#n_spikes = 500_000 
 n_spikes = 500_000 
 
-Tmax = run_simulation!(ntw,n_spikes);
+Tmax = run_simulation!(ntw,n_spikes,100.0,10.0);
 
 # ## Check the rates
 # The analytic rate is from  Eq between 6 and  7 in Hawkes 1971
@@ -233,10 +232,11 @@ myspikes_both = ps1.trains_history
 ratefou = let G0 =  mywmat .* H.interaction_kernel_fourier(0,p1)
   inv(I-G0)*myin |> real
 end 
+rate_analytic = inv(I-mywmat)*myin 
 
 @info "Total duration $(round(Tmax;digits=1)) s"
 @info "Rates are $(round.(num_rates;digits=2))"
-@info "Analytic rates are $(round.(ratefou;digits=2)) Hz"
+@info "Analytic rates are $(round.(rate_analytic;digits=2)) Hz"
 
 ##
 # ## Covariance density

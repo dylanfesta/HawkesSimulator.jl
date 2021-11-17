@@ -56,50 +56,6 @@ function reset!(ps::PopulationState)
   return nothing
 end
 
-"""
-    flush_trains!(ps::PopulationState,Ttrigger::Real;
-        Tflush::Union{Real,Nothing}=nothing)
- 
-  Spike history is spiketimes that do not interact with the kernel (because too old)      
-  This function compares most recent spike with spike history, if enough time has passed
-  (measured by Ttrigger) it flushes the spiketrain up to Tflush into the history.
-"""
-function flush_trains!(ps::PopulationState,Ttrigger::Real;
-    Tflush::Union{Real,Nothing}=nothing)
-  Tflush=something(Tflush,0.5*Ttrigger)
-  @assert Tflush < Ttrigger
-  for neu in 1:nneurons(ps)
-    train = ps.trains[neu]
-    history = ps.trains_history[neu]
-    if isempty(train) # no spikes, then nothing to do
-      continue
-    end
-    t_last = train[end]
-    th_last = isempty(history) ? 0.0 : history[end]
-    if (t_last - th_last) > Ttrigger
-      (ps.trains_history[neu],ps.trains[neu]) = 
-        _flush_train!(history,train,t_last+Tflush)
-    end
-  end
-  return nothing
-end
-# does the flushing, returning two (not necessarily new) vectors
-function _flush_train!(history::Vector{R},train::Vector{R},Tflush::R) where R
-  idx = searchsortedfirst(train,Tflush)
-  idx_tohistory = 1:(idx-1)
-  history_new = vcat(history,view(train,idx_tohistory))
-  deleteat!(train,idx_tohistory)
-  return history_new,train
-end
-
-# withouth other arguments, flushes everything into history!
-function flush_trains!(ps::PopulationState)
-  for neu in 1:nneurons(ps)
-    (ps.trains_history[neu],ps.trains[neu]) = 
-        _flush_train!( ps.trains_history[neu],ps.trains[neu],Inf)
-  end
-  return nothing
-end
 
 struct Population{N,PS<:PopulationState,
     TC<:NTuple{N,Connection},
@@ -157,6 +113,7 @@ end
 function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
     input::Vector{Float64};
     nonlinearity=NLRelu())
+  @assert size(weights,2) == length(input) 
   return RecurrentNetwork(
     Population(state,ConnectionWeights(weights),input;
     nonlinearity=nonlinearity))
@@ -267,6 +224,10 @@ end
 
 ### Unit types (interaction kernels) here
 
+@inline function interaction_kernel_fourier(ω::Real,popstate::PopulationState)
+  return interaction_kernel_fourier(ω,popstate.unittype)
+end
+
 # a cluncky sharp step !
 struct KernelStep <: UnitType
   τ::Float64
@@ -321,18 +282,81 @@ end
   return exp(-im*2*π*ω*ker.τdelay) / (1+im*2*π*ω*ker.τ)^2
 end
 
+## flush trains into history to speed up calculation 
+
+"""
+    flush_trains!(ps::PopulationState,Ttrigger::Real;
+        Tflush::Union{Real,Nothing}=nothing)
+ 
+  Spike history is spiketimes that do not interact with the kernel (because too old)      
+  This function compares most recent spike with spike history, if enough time has passed
+  (measured by Ttrigger) it flushes the spiketrain up to Tflush into the history.
+"""
+function flush_trains!(ps::PopulationState,Ttrigger::Real;
+    Tflush::Union{Real,Nothing}=nothing)
+  Tflush=something(Tflush,0.5*Ttrigger)
+  @assert Tflush < Ttrigger
+  for neu in 1:nneurons(ps)
+    train = ps.trains[neu]
+    history = ps.trains_history[neu]
+    if isempty(train) # no spikes, then nothing to do
+      continue
+    end
+    t_last = train[end]
+    th_last = isempty(history) ? 0.0 : history[end]
+    if (t_last - th_last) > Ttrigger
+      (ps.trains_history[neu],ps.trains[neu]) = 
+        _flush_train!(history,train,t_last+Tflush)
+    end
+  end
+  return nothing
+end
+function flush_trains!(ntw::RecurrentNetwork,Ttrigger::Real;
+  Tflush::Union{Real,Nothing}=nothing)
+  for pop in ntw.populations
+    flush_trains!(pop.state,Ttrigger;Tflush=Tflush)
+  end
+end 
+
+# does the flushing, returning two (not necessarily new) vectors
+function _flush_train!(history::Vector{R},train::Vector{R},Tflush::R) where R
+  idx = searchsortedfirst(train,Tflush)
+  idx_tohistory = 1:(idx-1)
+  history_new = vcat(history,view(train,idx_tohistory))
+  deleteat!(train,idx_tohistory)
+  return history_new,train
+end
+
+# withouth other arguments, flushes everything into history!
+function flush_trains!(ps::PopulationState)
+  for neu in 1:nneurons(ps)
+    (ps.trains_history[neu],ps.trains[neu]) = 
+        _flush_train!( ps.trains_history[neu],ps.trains[neu],Inf)
+  end
+  return nothing
+end
+function flush_trains!(ntw::RecurrentNetwork)
+  for pop in ntw.populations
+    flush_trains!(pop.state)
+  end
+end 
+
+
 
 ###### mean rates and other measures
 
-function numerical_rates(ps::PopulationState)
-  return numerical_rate.(ps.trains_history)
+function numerical_rates(ps::PopulationState;
+    Tstart::Real=0.0,Tend::Real=Inf)
+  return numerical_rate.(ps.trains_history;Tstart=Tstart,Tend=Tend)
 end
-function numerical_rates(pop::Population)
-  return numerical_rates(pop.state)
+function numerical_rates(pop::Population;
+    Tstart::Real=0.0,Tend::Real=Inf)
+  return numerical_rates(pop.state;Tstart=Tstart,Tend=Tend)
 end
 
 function numerical_rate(train::Vector{Float64};
     Tstart::Real=0.0,Tend::Real=Inf)
+  isempty(train) && return 0.0  
   Tend = min(Tend,train[end])
   Δt = Tend - Tstart
   return length(train)/Δt
