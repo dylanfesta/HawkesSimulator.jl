@@ -90,8 +90,9 @@ Tmax = run_simulation!(ntw,n_spikes);
 
 ratenum = H.numerical_rates(pops)[1]
 rate_analytic = (I-myw)\myinput
+rate_analytic = rate_analytic[1] # from 1-dim vector to scalar
 
-@info "Mean rate -  numerical $(round(ratenum;digits=2)), analytic  $(round(ratefou;digits=2))"
+@info "Mean rate -  numerical $(round(ratenum;digits=2)), analytic  $(round(rate_analytic;digits=2))"
 
 ##
 # ## Covariance density
@@ -120,7 +121,7 @@ function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer tim
   nkeep = div(length(mytaus),k1)
   myfreq = H.get_frequencies_centerzero(dt,myτmax)
   gfou = myw[1,1] .* H.interaction_kernel_fourier.(myfreq,Ref(ker)) |> ifftshift
-  ffou = let r=ratefou
+  ffou = let r=rate_analytic
     covf(g) = r/((1-g)*(1-g'))
     map(covf,gfou)
   end
