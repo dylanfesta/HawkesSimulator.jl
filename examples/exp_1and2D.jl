@@ -154,20 +154,13 @@ plot_counts()
 Now I compare the numerical rate with the analytic solution.
 
 The analytic rate corresponds to the stationary solution  
-we would have in a linear dynamical system, provided all 
-elements are above zero.
-
+of a linear dynamical system (assumung all stationary rates are above zero).
 ```math
-\frac{\mathrm d \mathbf r}{\mathrm d t} = - \mathbf r + W\;r + \mathbf h
-```
-
-Which leads to...
-```math
-r_\infty = (I-W)^{-1} \; \mathbf h
+\frac{\mathrm d \mathbf r}{\mathrm d t} = - \mathbf r + W\;r + \mathbf h \quad;
+\qquad  r_\infty = (I-W)^{-1} \; \mathbf h
 ```
 =#
 
-# analytic rate expression for linear models
 rate_analytic = inv(I-myw)*myinput
 rate_analytic = rate_analytic[1] # 1-D , just a scalar
 

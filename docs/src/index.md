@@ -19,6 +19,7 @@ Modules = [HawkesSimulator]
 ## Examples
 
 1. [**1D and 2D, exponential kernel**](./exp_1and2D.md)
+1. [**1D delayed-alpha kernel**](./alphadelay.md)
 
-TODO : add other two files.
-[comment]: <> ( 1. [**1D delayed-alpha kernel**](./alphadelay.md) 1. [**2D delayed-alpha interactions, and non-delayed autapses**](./2d_delay_autapses.md) )
+TODO : add other  file.
+[comment]: <> ( 1. [**2D delayed-alpha interactions, and non-delayed autapses**](./2d_delay_autapses.md) )
