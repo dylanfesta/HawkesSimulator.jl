@@ -220,11 +220,11 @@ For long simulations, this functions should be called jointly with
 propagation of signals extremely cumbersome.
 
 # Arguments
-`t_now` - Current time of the simulation
-`ntw`   - The network
++ `t_now` - Current time of the simulation
++ `ntw`   - The network
 
 # Returns   
-`t_now_new` - the new current time of the simulation
++ `t_now_new` - the new current time of the simulation
 
 """
 function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetwork)
@@ -498,6 +498,7 @@ function warmup_step!(t_now::Real,ntw::RecurrentNetwork,
     warmup_rates::Union{Vector{Float64},Vector{Vector{Float64}}})
   npops = npopulations(ntw)
   isonepop = npops == 1
+  expdistr = Exponential()
   proposals_best = Vector{Float64}(undef,npops)
   neuron_best = Vector{Int64}(undef,npops)
   # for each postsynaptic network, compute spike proposals 
@@ -551,6 +552,7 @@ function do_warmup!(Twarmup::Real,ntw::RecurrentNetwork,
   t_now = 0.0 
   npops = npopulations(ntw)
   isonepop = npops == 1
+  reset!(ntw) # clear spike trains etc
   # sanity checks
   if isonepop
     @assert eltype(warmup_rates) <: Number
@@ -558,7 +560,7 @@ function do_warmup!(Twarmup::Real,ntw::RecurrentNetwork,
   else
     @assert eltype(warmup_rates) <: Vector
     @assert length(warmup_rates) == npops
-    @assert all(nneurons.(ntw.populations) == length.(warmup_rates)) 
+    @assert all(nneurons.(ntw.populations) .== length.(warmup_rates)) 
   end
   while t_now <= Twarmup
     t_now =  warmup_step!(t_now,ntw,warmup_rates)

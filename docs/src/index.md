@@ -9,11 +9,12 @@ CurrentModule = HawkesSimulator
 !!! warning
     The documentation is still missing. Please see the "examples" section for usage.
 
-
 ## Examples
 
 1. [**1D and 2D, exponential kernel**](./exp_1and2D.md)
 1. [**1D delayed-alpha kernel**](./alphadelay.md)
+
+## Index
 
 ```@index
 ```
