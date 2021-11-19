@@ -58,4 +58,23 @@ end
   Tmax = simulate!(network,n_spikes)
   rates_ntw = H.numerical_rates(network.populations[1])
   @test all(isapprox.(rates_analytic,rates_ntw;rtol=0.2))
+
+  # do it again, checking the one-population optimized function 
+  function simulate_onepop!(network,num_spikes)
+    t_now = 0.0
+    H.reset!(network) # clear spike trains etc
+    for _ in 1:num_spikes
+      t_now = H.dynamics_step_singlepopulation!(t_now,network)
+      H.flush_trains!(popstate,10.0;Tflush=5.0)
+    end
+    H.flush_trains!(popstate)
+    return t_now
+  end
+  n_spikes = 200_000
+  Tmax = simulate!(network,n_spikes)
+  rates_ntw = H.numerical_rates(network.populations[1])
+  @test all(isapprox.(rates_analytic,rates_ntw;rtol=0.2))
+
 end
+
+

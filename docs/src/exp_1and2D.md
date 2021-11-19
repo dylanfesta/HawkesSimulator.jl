@@ -87,7 +87,7 @@ function run_simulation!(network,num_spikes,
   t_now = 0.0
   H.reset!(network) # clear spike trains etc
   @showprogress "Running Hawkes process..." for _ in 1:num_spikes
-    t_now = H.dynamics_step!(t_now,network)
+    t_now = H.dynamics_step_singlepopulation!(t_now,network)
     H.flush_trains!(network,t_flush_trigger;Tflush=t_flush)
   end
   H.flush_trains!(network) # flush everything into history
@@ -171,19 +171,11 @@ plot_counts()
 Now I compare the numerical rate with the analytic solution.
 
 The analytic rate corresponds to the stationary solution
-we would have in a linear dynamical system, provided all
-elements are above zero.
-
+of a linear dynamical system (assumung all stationary rates are above zero).
 ```math
-\frac{\mathrm d \mathbf r}{\mathrm d t} = - \mathbf r + W\;r + \mathbf h
+\frac{\mathrm d \mathbf r}{\mathrm d t} = - \mathbf r + W\;r + \mathbf h \quad;
+\qquad  r_\infty = (I-W)^{-1} \; \mathbf h
 ```
-
-Which leads to...
-```math
-r_\infty = (I-W)^{-1} \; \mathbf h
-```
-
-analytic rate expression for linear models
 
 ````@example exp_1and2D
 rate_analytic = inv(I-myw)*myinput

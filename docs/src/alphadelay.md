@@ -87,7 +87,7 @@ function run_simulation!(network,num_spikes,
   t_now = 0.0
   H.reset!(network) # clear spike trains etc
   @showprogress "Running Hawkes process..." for _ in 1:num_spikes
-    t_now = H.dynamics_step!(t_now,network)
+    t_now = H.dynamics_step_singlepopulation!(t_now,network)
     H.flush_trains!(network,t_flush_trigger;Tflush=t_flush)
   end
   H.flush_trains!(network) # flush everything into history

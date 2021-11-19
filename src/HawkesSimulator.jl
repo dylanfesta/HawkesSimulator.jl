@@ -182,7 +182,6 @@ function hawkes_next_spike(t_now::Real,pop::Population,ineu::Integer;Tmax::Real=
   return Tmax + t_start
 end
 
-
 function dynamics_step!(t_now::Real,ntw::RecurrentNetwork)
   npops = npopulations(ntw)
   proposals_best = Vector{Float64}(undef,npops)
@@ -206,6 +205,44 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetwork)
   # update t_now 
   return tbest
 end
+
+"""
+    dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetwork)
+
+Iterates a *one-population* network up until its next spike time.
+This is done by computing a next spike proposal for each neuron, and then
+picking the one that happens sooner. This spike is then added to the 
+spiketrain for that neuron. The fundtion returns the new current time
+of the simulation.
+
+For long simulations, this functions should be called jointly with 
+`flush_trains!`. Otherwise the spike trains will keep growing, making the 
+propagation of signals extremely cumbersome.
+
+# Arguments
+`t_now` - Current time of the simulation
+`ntw`   - The network
+
+# Returns   
+`t_now_new` - the new current time of the simulation
+
+"""
+function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetwork)
+  # for each postsynaptic network, compute spike proposals 
+  @assert npopulations(ntw) == 1 "This function is only for 1-population networks"
+  pop = ntw.populations[1]
+  nneu = nneurons(pop)
+  for ineu in 1:nneu
+    pop.spike_proposals[ineu] = hawkes_next_spike(t_now,pop,ineu) 
+  end
+  (tbest, neuron_best) = findmin(pop.spike_proposals) 
+  # select train for that specific neuron
+  # and add the spike time to it
+  push!(pop.state.trains[neuron_best],tbest)
+  # return the new current time, corresponding to the spiketime 
+  return tbest
+end
+
 
 
 ## Nonlinearities here
@@ -439,6 +476,103 @@ function covariance_density_numerical(Ys::Vector{Vector{R}},dτ::Real,τmax::R,
   return ret
 end
 
+#### warmup phase!
+
+"""
+  warmup_step!(t_now::Real,ntw::RecurrentNetwork,
+    warmup_rates::Union{Vector{Float64},Vector{Vector{Float64}}}) -> t_end
+
+In the warmup phase, all neurons fire as independent Poisson process 
+with a rate set by `warmup_rates`.  
+This is useful to quick-start the network, or set itinitial
+conditions that are far from the stable point.
+
+# Arguments
++ `t_now` - current time
++ `ntw`  - the network (warning: weights and kernels are entirely ignored here)
++ `warmup_rates` - the desired stationary rates. In a one-population network,
+    it is a vector with the desired rates. In a multi-population network,
+    is a collection of vectors, where each vector refers to one population.
+"""
+function warmup_step!(t_now::Real,ntw::RecurrentNetwork,
+    warmup_rates::Union{Vector{Float64},Vector{Vector{Float64}}})
+  npops = npopulations(ntw)
+  isonepop = npops == 1
+  proposals_best = Vector{Float64}(undef,npops)
+  neuron_best = Vector{Int64}(undef,npops)
+  # for each postsynaptic network, compute spike proposals 
+  for (kn,pop) in enumerate(ntw.populations)
+    # update proposed next spike for each postsynaptic neuron
+    nneu = nneurons(pop)
+    _rates =  isonepop ?  warmup_rates : warmup_rates[kn]
+    for ineu in 1:nneu
+      pop.spike_proposals[ineu] = t_now + rand(expdistr)/_rates[ineu] 
+    end
+    # best candidate and neuron that fired it for one input network
+    (proposals_best[kn], neuron_best[kn]) = findmin(pop.spike_proposals) 
+  end 
+  # select next spike (best across all input_networks)
+  (tbest,kbest) = findmin(proposals_best)
+  # update train for that specific neuron :
+  # add the spiking time to the neuron that fired it
+  best_neu_train = ntw.populations[kbest].state.trains[neuron_best[kbest]]
+  push!(best_neu_train,tbest)
+  # update t_now 
+  return tbest
+end
+
+
+"""
+    do_warmup!(Twarmup::Real,ntw::RecurrentNetwork,
+        warmup_rates::Union{Vector{Float64},Vector{Vector{Float64}}}) -> t_end
+
+In the warmup phase, all neurons fire as independent Poisson process 
+with a rate set by `warmup_rates`.  
+This is useful to quick-start the network, or set itinitial
+conditions that are far from the stable point.
+
+# Arguments
++ `Twarmup` - total warmup time
++ `ntw`  - the network (warning: weights and kernels are entirely ignored here)
++ `warmup_rates` - the desired stationary rates. In a one-population network,
+    it is a vector with the desired rates. In a multi-population network,
+    is a collection of vectors, where each vector refers to one population.
+
+# In-place changes
+The `trains` in the `populations` inside `ntw` will contain the warmup spiking.
+
+# Returns
++ `t_end` the time after warmum (the earliest spike after Twarmup). Note that 
+ if you want to run a full network simulations, you need to use this as staring time.
+"""
+
+function do_warmup!(Twarmup::Real,ntw::RecurrentNetwork,
+    warmup_rates::Union{Vector{Float64},Vector{Vector{Float64}}})
+  t_now = 0.0 
+  npops = npopulations(ntw)
+  isonepop = npops == 1
+  # sanity checks
+  if isonepop
+    @assert eltype(warmup_rates) <: Number
+    @assert nneurons(ntw.populations[1]) == length(warmup_rates)
+  else
+    @assert eltype(warmup_rates) <: Vector
+    @assert length(warmup_rates) == npops
+    @assert all(nneurons.(ntw.populations) == length.(warmup_rates)) 
+  end
+  while t_now <= Twarmup
+    t_now =  warmup_step!(t_now,ntw,warmup_rates)
+  end
+  return t_now
+end
+
+
+
+###
+
+
+
+
 """
      draw_spike_raster(trains::Vector{Vector{Float64}},
       dt::Real,Tend::Real;
@@ -464,7 +598,7 @@ the order of the plot. First element is at the top, second is second row, etc.
 + `spike_separator` : space between spikes, and vertical padding
 + `background_color` : self-explanatory
 + `spike_colors` : if a single color, color of all spikes, if vector of colors, 
-color for each neuron
+color for each neuron (length should be same as number of neurons)
 
 # returns
 `raster_matrix::Matrix{Color}` you can save it as a png file
