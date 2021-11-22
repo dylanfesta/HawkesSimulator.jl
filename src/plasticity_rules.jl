@@ -1,6 +1,6 @@
 
 # traces as structs
-# (after all, why not?  ... why shouldn't I make it a struct?)
+# (after all, why not?  ... why shouldn't I use a struct?)
 
 struct Trace
   val::Vector{Float64}
@@ -18,13 +18,14 @@ function propagate!(tnow::Float64,tra::Trace)
   tra.t_last[]=tnow
   return nothing
 end
-# assumes you already popagated until now
-function update_now!(tra::Trace,idx_update::Vector{I},up_val::Float64=1.0) where I
-  @inbounds @simd for i in idx_update
-    tra.val[i] += up_val
+# updates single element of trace, unless it is nothing
+function update_now!(tra::Trace,idx_update::Int64,up_val::Float64=1.0)
+  if idx_update != 0
+    tra.val[idx_update] += up_val
   end
   return nothing
 end
+
 function reset!(tra::Trace)
   fill!(tra.val,0.0) 
   tra.t_last[]=tnow
@@ -35,7 +36,27 @@ end
 # because!
 
 abstract type PlasticityBounds end
-struct PlasticityBoundsNonNegative <: PlasticityBounds end
+struct PlasticityBoundsNonnegative <: PlasticityBounds end
+struct PlasticityBoundsLowHigh <: PlasticityBounds 
+  low::Float64
+  high::Float64
+end
+function (plb::PlasticityBoundsNonnegative)(w::R,Δw::R) where R
+  ret = w+Δw
+  return min(eps(100.0),ret)
+end
+function (plb::PlasticityBoundsLowHigh)(w::R,Δw::R) where R
+  ret = w+Δw
+  return min(plb.high,max(plb.low,ret))
+end
+
+# utility function
+function find_in_trains(t_now::R,trains_pre::Vector{Vector{R}},trains_post::Vector{Vector{R}}) where R
+  is_t_now(train) = isempty(train) ? false : last(train) == t_now
+  k_pre::Int64  = something(0,findfirst(is_t_now,trains_pre))
+  k_post::Int64 = something(0,findfirst(is_t_now,trains_post))
+  return (k_pre,k_post)
+end
 
 # Pairwise plasticity 
 struct PairSTDP <: PlasticityRule
@@ -57,34 +78,34 @@ function reset!(pl::PairSTDP)
   return nothing
 end
 
-#=
 function plasticity_update!(t_now::Real,
-  pspost::PopulationState,conn::Connection,pspre::PopulationState,
-  plast::PairSTDP)
-
-  # update synapses
-# presynpatic spike go along w column
-for j_pre in idx_pre_spike
-   Δw = -plast.post_trace[ipost]*plast.Aminus
-   weightsnz[_pnz] = max(0.0,weightsnz[_pnz]-Δw)
- end
+    pspre::PopulationState,conn::Connection,pspost::PopulationState,
+    plast::PairSTDP)
+  weights = conn.weights
+  npost,npre = size(weights)
+  k_pre,k_post = find_in_trains(t_now,pspre.trains,pspost.trains)
+  if !iszero(k_pre)
+    # k is presynaptic: go along rows of k_pre column 
+    for i in 1:npost
+      wik = weights[i,k_pre] 
+      if wik > 0
+        Δw = plast.post_trace[i]*plast.Aminus
+        weights[i,k] =  plast.bounds(wik,Δw)
+      end
+    end
+  end
+  if !iszero(k_post)
+    # k is postsynaptic: go along columns of k_post row
+    for j in 1:npre
+      wkj = weights[k_post,j] 
+      if wkj > 0
+        Δw = plast.pre_trace[j]*plast.Aplus
+        weights[k_post,j] =  plast.bounds(wkj,Δw)
+      end
+    end
+  end
+  # update the plasticity trace variables, if needed
+  update_traces!(plast.pre_traces,k_pre)
+  update_traces!(plast.post_traces,k_post)
+  return nothing
 end
-# postsynaptic spike: go along w row
-# innefficient ... need to search i element for each column
-for i_post in idx_post_spike
- for j_pre in (1:pspre.n)
-   _start = _colptr[j_pre]
-   _end = _colptr[j_pre+1]-1
-   _pnz = searchsortedfirst(row_idxs,i_post,_start,_end,Base.Order.Forward)
-   if (_pnz<=_end) && (row_idxs[_pnz] == i_post) # must check!
-     Δw = plast.pre_trace[j_pre]*plast.Aplus 
-     weightsnz[_pnz]+= Δw
-   end
- end
-end
-# update the plasticity trace variables
-update_traces!(plast.pre_traces,idx_pre_spike)
-update_traces!(plast.post_traces,idx_post_spike)
-return nothing
-end
-=#

@@ -40,8 +40,6 @@ nothing #hide
 ````
 
 First I define the kernel, and the self-interaction weight.
-The kernel is defined through a "Population": all neurons in the same
-population have the same kernel.
 
 `myw` is a scaling factor (the weight of the
 autaptic connection). The baseline rate is given by `myinput`
@@ -67,6 +65,13 @@ plot(theplot)
 ````
 
 Now I build the network, using the simplified constructor
+for one-population networks.
+The object `PopulationState` initializes a population of
+Hawkes neurons of the specified size (1, in this case)
+and the kernel `mykernel` neurons in the same population
+all have the same kernel.
+(this might be an inconvenience if one wants qualitatively different
+self-connections... but it might be fixed in future versions)
 
 ````@example exp_1and2D
 popstate = H.PopulationState(mykernel,1)

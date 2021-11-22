@@ -6,7 +6,7 @@ function numerical_rates(ps::PopulationState;
     Tstart::Real=0.0,Tend::Real=Inf)
   return numerical_rate.(ps.trains_history;Tstart=Tstart,Tend=Tend)
 end
-function numerical_rates(pop::Population;
+function numerical_rates(pop::AbstractPopulation;
     Tstart::Real=0.0,Tend::Real=Inf)
   return numerical_rates(pop.state;Tstart=Tstart,Tend=Tend)
 end

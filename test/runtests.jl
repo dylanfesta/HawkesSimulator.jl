@@ -92,13 +92,10 @@ end
 
   popstate1 = H.PopulationState(mykernel1,N1)
   popstate2 = H.PopulationState(mykernel2,N2)
-  population1 = H.Population(popstate1,inputs1,
-    (H.ConnectionWeights(weights1),popstate1) )
 
-  population1 = H.Population(popstate1,inputs1,
+  population1 = H.PopulationHawkes(popstate1,inputs1,
     (H.ConnectionWeights(weights1),popstate1) )
-
-  population2 = H.Population(popstate2,inputs2,
+  population2 = H.PopulationHawkes(popstate2,inputs2,
     (H.ConnectionWeights(weights2),popstate2) )
 
   # multi-pop constructor

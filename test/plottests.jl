@@ -75,3 +75,5 @@ H.numerical_rates(network.populations[1])
 
 plotvs(H.numerical_rates(population1),target_rates1  )
 plotvs(H.numerical_rates(population2),target_rates2  )
+
+##

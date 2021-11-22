@@ -46,6 +46,27 @@ function warmup_step!(t_now::Real,ntw::RecurrentNetwork,
   # update t_now 
   return tbest
 end
+function warmup_step_onepopulation!(t_now::Real,ntw::RecurrentNetwork,
+    warmup_rates::Vector{Float64})
+  proposals_best = Vector{Float64}(undef,npops)
+  neuron_best = Vector{Int64}(undef,npops)
+  # compute spike proposals 
+  pop = ntw.populations[1]
+  # update proposed next spike for each postsynaptic neuron
+  nneu = nneurons(pop)
+  for ineu in 1:nneu
+    pop.spike_proposals[ineu] = t_now + -log(rand())/warmup_rates[ineu] 
+  end
+  # best candidate and neuron that fired it for one input network
+  (tbest, neuron_best) = findmin(pop.spike_proposals) 
+  # update train for that specific neuron :
+  # add the spiking time to the neuron that fired it
+  best_neu_train = pop.state.trains[neuron_best]
+  push!(best_neu_train,tbest)
+  # update t_now 
+  return tbest
+end
+
 
 
 """
@@ -82,15 +103,19 @@ function do_warmup!(Twarmup::Real,ntw::RecurrentNetwork,
   if isonepop
     @assert eltype(warmup_rates) <: Number
     @assert nneurons(ntw.populations[1]) == length(warmup_rates)
+    while t_now <= Twarmup
+      t_now =  warmup_step_onepopulation!(t_now,ntw,warmup_rates)
+    end
+    return t_now
   else
     @assert eltype(warmup_rates) <: Vector
     @assert length(warmup_rates) == npops
     @assert all(nneurons.(ntw.populations) .== length.(warmup_rates)) 
+    while t_now <= Twarmup
+      t_now =  warmup_step!(t_now,ntw,warmup_rates)
+    end
+    return t_now
   end
-  while t_now <= Twarmup
-    t_now =  warmup_step!(t_now,ntw,warmup_rates)
-  end
-  return t_now
 end
 
 # now consider interactive network
@@ -104,7 +129,7 @@ end
 end
 
 function compute_rate(t_now::Real,external_input::Real,
-    pop::Population, idxneu::Integer)
+    pop::PopulationHawkes, idxneu::Integer)
   ret = external_input
   for (conn,pre) in zip(pop.connections,pop.pre_states)
     weights = conn.weights
@@ -121,7 +146,7 @@ function compute_rate(t_now::Real,external_input::Real,
 end
 # same as above, but interaction upperbound (for thinning algorithm)
 function compute_rate_upperbound(t_now::Real,external_input::Real,
-    pop::Population, idxneu::Integer)
+    pop::PopulationHawkes, idxneu::Integer)
   ret = external_input
   for (conn,pre) in zip(pop.connections,pop.pre_states)
     weights = conn.weights
@@ -138,19 +163,19 @@ function compute_rate_upperbound(t_now::Real,external_input::Real,
 end
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
-function hawkes_next_spike(t_now::Real,pop::Population,ineu::Integer;Tmax::Real=100.0)
+function compute_next_spike(t_now::Real,pop::PopulationHawkes,ineu::Integer;Tmax::Real=100.0)
   t_start = t_now
   t = t_now 
   ext_inp = pop.input[ineu]
-  expdistr=Exponential()
   freq(t) = compute_rate(t,ext_inp,pop,ineu)
   freq_up(t) = compute_rate_upperbound(t,ext_inp,pop,ineu)
   while (t-t_start)<Tmax # Tmax is upper limit, if rate too low 
-    M = freq_up(t)
-    Δt = rand(expdistr)/M
+    (M::Float64) = freq_up(t)
+    Δt =  -log(rand())/M # rand(Exponential())/M
     t = t+Δt
     u = rand()*M # random between 0 and M
-    if u <= freq(t) 
+    (u_up::Float64) = freq(t) 
+    if u <= u_up
       return t
     end
   end
@@ -166,7 +191,7 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetwork)
     # update proposed next spike for each postsynaptic neuron
     nneu = nneurons(pop)
     for ineu in 1:nneu
-      pop.spike_proposals[ineu] = hawkes_next_spike(t_now,pop,ineu) 
+      pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu) 
     end
     # best candidate and neuron that fired it for one input network
     (proposals_best[kn], neuron_best[kn]) = findmin(pop.spike_proposals) 
@@ -208,7 +233,7 @@ function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetwork)
   pop = ntw.populations[1]
   nneu = nneurons(pop)
   for ineu in 1:nneu
-    pop.spike_proposals[ineu] = hawkes_next_spike(t_now,pop,ineu) 
+    pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu) 
   end
   (tbest, neuron_best) = findmin(pop.spike_proposals) 
   # select train for that specific neuron

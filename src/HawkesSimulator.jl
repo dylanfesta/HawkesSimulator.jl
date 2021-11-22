@@ -3,6 +3,21 @@ using StatsBase,Statistics,Distributions,LinearAlgebra,Random
 using FFTW
 using Colors # to save rasters as png
 
+#=
+UnitType : specifies the kernel for Hawkes processes, or 
+the input type for input units. 
+PopulationState  : contains UnitType, n, which is the population size,
+then trains contains n arrays, each is the spike of past trains 
+for that single unit.  trains_history are non-interactive spikes 
+AbstractPopulation : contains one postsynaptic (or input) population state,
+which is called `state`.Contains `spike_proposals` for memory allocation
+PopulationHawkes : contains one postsynaptic population, plus the connecting from
+other populations into it.
+PopulationInput : used for input types. 
+
+=#
+
+
 abstract type UnitType end
 abstract type Connection end
 abstract type PlasticityRule end
@@ -63,39 +78,46 @@ function reset!(ps::PopulationState)
   return nothing
 end
 
+# this will cover Hawkes populations but also input populations
+abstract type AbstractPopulation end
+nneurons(p::AbstractPopulation) = nneurons(p.state)
 
-struct Population{N,PS<:PopulationState,
+struct PopulationHawkes{N,PS<:PopulationState,
     TC<:NTuple{N,Connection},
     TP<:NTuple{N,PopulationState},
-    NL<:AbstractNonlinearity}
+    NL<:AbstractNonlinearity} <: AbstractPopulation
   state::PS
   connections::TC
   pre_states::TP
   input::Vector{Float64} # input only used for external currents 
   nonlinearity::NL # nonlinearity if present
-  spike_proposals::Vector{Float64} # allocation (probably useless)
+  spike_proposals::Vector{Float64} # memory allocation 
 end
-nneurons(p::Population) = nneurons(p.state)
 
-function Population(state::PopulationState,input::Vector{Float64},
+function PopulationHawkes(state::PopulationState,input::Vector{Float64},
     (conn_pre::Tuple{C,PS} where {C<:Connection,PS<:PopulationState})...;
       nonlinearity::AbstractNonlinearity=NLRelu())
   connections = Tuple(getindex.(conn_pre,1))
   pre_states = Tuple(getindex.(conn_pre,2))
   spike_proposals = fill(-Inf,nneurons(state))
-  return Population(state,connections,pre_states,input,nonlinearity,spike_proposals) 
+  return PopulationHawkes(state,connections,pre_states,input,nonlinearity,spike_proposals) 
 end
 
 # one population only!
-function Population(state::PopulationState,conn::Connection,input::Vector{Float64}; 
+function PopulationHawkes(state::PopulationState,conn::Connection,input::Vector{Float64}; 
     nonlinearity::AbstractNonlinearity=NLRelu())
-  return Population(state,input,(conn,state);nonlinearity=nonlinearity)
+  return PopulationHawkes(state,input,(conn,state);nonlinearity=nonlinearity)
 end
 
 # recurrent network is just a tuple of (input) populations 
-struct RecurrentNetwork{N,TP<:NTuple{N,Population}}
+struct RecurrentNetwork{N,TP<:NTuple{N,AbstractPopulation}}
   populations::TP
 end
+# base constructor
+function RecurrentNetwork((pops::P where P<:AbstractPopulation)...)
+  RecurrentNetwork(pops)
+end
+# reset
 function reset!(rn::RecurrentNetwork)
   for pop in rn.populations
     reset!(pop.state)
@@ -107,14 +129,11 @@ end
 end
 
 # more constructors
-function RecurrentNetwork((pops::P where P<:Population)...)
-  RecurrentNetwork(pops)
-end
-# one population simplification
+# one population simplification (assuming it is an Hawkes type!)
 function RecurrentNetwork(state::PopulationState,conn::Connection,
     input::Vector{Float64};
     nonlinearity::AbstractNonlinearity=NLRelu())
-  return RecurrentNetwork(Population(state,conn,input;nonlinearity=nonlinearity))
+  return RecurrentNetwork(PopulationHawkes(state,conn,input;nonlinearity=nonlinearity))
 end
 # or even simpler constructor
 function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
@@ -122,23 +141,22 @@ function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
     nonlinearity=NLRelu())
   @assert size(weights,2) == length(input) 
   return RecurrentNetwork(
-    Population(state,ConnectionWeights(weights),input;
+    PopulationHawkes(state,ConnectionWeights(weights),input;
     nonlinearity=nonlinearity))
 end
 
 # everything else
 
-include("spikes_gen.jl")
+include("spike_generation_hawkes.jl")
 # the interaction_kernel and interaction_kernel_upper come from here : 
 include("kernels.jl")
 # apply_nonlinearity defined here
 include("nonlinearities.jl")
-# analyze the output: mean, covariance, etc
-include("spike_analysis.jl")
+# input-neurons 
+include("inputs.jl")
 # apply_plasticities defined here
 include("plasticity_rules.jl")
-
-##
-
+# analyze the output: mean, covariance, etc
+include("spike_analysis.jl")
 
 end # of module
