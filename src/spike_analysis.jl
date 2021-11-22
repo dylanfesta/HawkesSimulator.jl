@@ -27,7 +27,7 @@ function bin_spikes(Y::Vector{R},dt::R,Tend::R;
   times = range(Tstart,Tend;step=dt)  
   ret = fill(0,length(times)-1)
   for y in Y
-    if Tstart < y <= Tend
+    if Tstart < y <= last(times)
       k = searchsortedfirst(times,y)-1
       ret[k] += 1
     end
@@ -35,6 +35,25 @@ function bin_spikes(Y::Vector{R},dt::R,Tend::R;
   return ret
 end
 
+# and returns a value in Hz
+function instantaneous_rates(idxs_neu::AbstractVector{<:Integer},
+    dt::Float64,pop::AbstractPopulation;Tend::Float64=-1.0,Tstart::Float64=0.0)
+  trains = pop.state.trains_history[idxs_neu]  
+  return  instantaneous_rates(dt,trains;
+   Tend=Tend,Tstart=Tstart)
+end
+function instantaneous_rates(dt::Float64,trains::Vector{Vector{Float64}};
+  Tend::Float64=-1.0,Tstart::Float64=0.0)
+  if Tend < 0 
+    Tend = minimum(last.(trains))
+  end
+  tmid = midpoints(range(Tstart,Tend;step=dt))
+  counts = fill(0.0,length(tmid))
+  for train in trains
+    counts .+= bin_spikes(train,dt,Tend;Tstart=Tstart)
+  end
+  return tmid,counts ./ (dt*length(trains))
+end
 
 # time starts at 0, ends at T-dt, there are T/dt steps in total
 @inline function get_times(dt::Real,T::Real)

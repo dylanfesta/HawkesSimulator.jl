@@ -115,3 +115,65 @@ end
   @test all( isapprox.(H.numerical_rates(population1),target_rates1;rtol=0.2) )
   @test all( isapprox.(H.numerical_rates(population2),target_rates2;rtol=0.2) )
 end
+
+@testset "Poisson input units" begin
+  N1 = 13
+  N2 = 17
+  target_rates1 = rand(Uniform(5.,12.),N1)
+  target_rates2 = rand(Uniform(12.,44.),N2)
+
+  population1 = let spikegen = H.SGPoisson(target_rates1)
+    H.PopulationInput(spikegen,N1)
+  end
+  population2 = let spikegen = H.SGPoisson(target_rates2)
+    H.PopulationInput(spikegen,N2)
+  end
+
+  network = H.RecurrentNetwork(population1,population2)
+  function simulate!(network,num_spikes)
+    t_now = 0.0
+    H.reset!(network) # clear spike trains etc
+    for _ in 1:num_spikes
+      t_now = H.dynamics_step!(t_now,network)
+    end
+    H.flush_trains!(network)
+    return t_now
+  end
+
+  n_spikes = 200_000
+  Tmax = simulate!(network,n_spikes)
+  rates_ntw1 = H.numerical_rates(network.populations[1])
+  rates_ntw2 = H.numerical_rates(network.populations[2])
+
+  @test all(isapprox.(target_rates1,rates_ntw1;rtol=0.1))
+  @test all(isapprox.(target_rates2,rates_ntw2;rtol=0.1))
+end
+
+@testset "Input units, time-varying function" begin
+  Nunits = 200
+  function rate_fun(t::Float64,::Integer)
+    return 10.0 + 6.0*cos(t*(2π)*0.5)
+  end
+  function rate_fun_upper(::Float64,::Integer)
+    return 10.0 + 6.0
+  end
+  #plot(t->rate_fun(t,0),range(0,10;length=300);leg=false)
+  population1 = let spikegen = H.SGPoissonFunction(rate_fun,rate_fun_upper)
+    H.PopulationInput(spikegen,Nunits)
+  end
+  network = H.RecurrentNetwork(population1)
+  function simulate!(network,num_spikes)
+    t_now = 0.0
+    H.reset!(network) # clear spike trains etc
+    for _ in 1:num_spikes
+      t_now = H.dynamics_step_singlepopulation!(t_now,network)
+    end
+    H.flush_trains!(network)
+    return t_now
+  end
+  n_spikes = 50_000
+  Tmax = simulate!(network,n_spikes)
+  # now, compute rates!
+  tmid,rats = H.instantaneous_rates(collect(1:Nunits),0.1,population1;Tend=Tmax)
+  @test all(isapprox.(rats,rate_fun.(tmid,1);rtol=0.33))
+end

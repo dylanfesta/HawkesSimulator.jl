@@ -11,13 +11,20 @@ struct PopulationInput{PS<:PopulationState} <: AbstractPopulation
   end
 end
 
-abstract type SpikeGenerator end
 
+abstract type SpikeGenerator end
 struct InputUnit{SG<:SpikeGenerator} <: UnitType
   spike_generator::SG
 end
 @inline function compute_next_spike(t_now::Real,pop::PopulationInput,ineu::Integer)
   return compute_next_spike(t_now,pop.state.unittype.spike_generator,ineu)
+end
+
+# simplified constructor for population object
+# (because it has no inputs or incoming weights, so it is pretty much a 
+# wrapper around its population state)
+function PopulationInput(sg::SpikeGenerator,n::Integer)
+  return PopulationInput(PopulationState(InputUnit(sg),n))
 end
 
 ############
