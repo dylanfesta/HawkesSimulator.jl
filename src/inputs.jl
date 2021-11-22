@@ -3,7 +3,11 @@
 # input population is a simplified version of
 # PopulationHawkes. Does not connect to anything
 
-struct PopulationInput{PS<:PopulationState} <: AbstractPopulation
+# I need to abstract the type, because there is a variant to test weights
+abstract type AbstractPopulationInput <: AbstractPopulation end
+
+
+struct PopulationInput{PS<:PopulationState} <: AbstractPopulationInput
   state::PS
   spike_proposals::Vector{Float64} # memory allocation 
   function PopulationInput(ps::PS) where PS<:PopulationState
@@ -16,7 +20,7 @@ abstract type SpikeGenerator end
 struct InputUnit{SG<:SpikeGenerator} <: UnitType
   spike_generator::SG
 end
-@inline function compute_next_spike(t_now::Real,pop::PopulationInput,ineu::Integer)
+@inline function compute_next_spike(t_now::Real,pop::AbstractPopulationInput,ineu::Integer)
   return compute_next_spike(t_now,pop.state.unittype.spike_generator,ineu)
 end
 
@@ -32,8 +36,7 @@ end
 # N.B. those weights have no influence whatsoever on the dynamics!
 struct PopulationInputTestWeights{N,PS<:PopulationState,
     TC<:NTuple{N,Connection},
-    TP<:NTuple{N,PopulationState},
-    NL<:AbstractNonlinearity} <: AbstractPopulation
+    TP<:NTuple{N,PopulationState}} <: AbstractPopulationInput
   state::PS
   connections::TC
   pre_states::TP
@@ -72,7 +75,8 @@ struct SGTrains <: SpikeGenerator
 end
 @inline function compute_next_spike(t_now::Float64,sg::SGTrains,idxneu::Integer)
   train = sg.trains[idxneu]
-  idx = searchsortedfirst(train,t_now)
+  t_now_plus = t_now+eps(1000.0) # add a small epsilon to move to next element
+  idx = searchsortedfirst(train,t_now_plus)
   if idx > length(train)
     return Inf
   else

@@ -27,10 +27,13 @@ struct ConnectionWeights{N,PL<:NTuple{N,PlasticityRule}} <: Connection
   weights::Matrix{Float64}
   plasticities::PL
 end
-
 function ConnectionWeights(weights::Matrix{Float64})
   plast = NTuple{0,NoPlasticity}()
   return ConnectionWeights(weights,plast)
+end
+function ConnectionWeights(weights::Matrix{Float64},
+     (plasticity_rules::PL where PL<:PlasticityRule)...)
+  return ConnectionWeights(weights,plasticity_rules)
 end
 
 abstract type AbstractNonlinearity end
@@ -121,6 +124,12 @@ end
 function reset!(rn::RecurrentNetwork)
   for pop in rn.populations
     reset!(pop.state)
+    # reset plasticity operators if present
+    for conn in pop.connections
+      for plast in conn.plasticities
+        reset!(plast)
+      end
+    end
   end
   return nothing
 end
@@ -145,6 +154,7 @@ function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
     nonlinearity=nonlinearity))
 end
 
+#############
 # everything else
 
 include("spike_generation_hawkes.jl")

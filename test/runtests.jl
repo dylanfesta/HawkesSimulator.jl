@@ -177,3 +177,44 @@ end
   tmid,rats = H.instantaneous_rates(collect(1:Nunits),0.1,population1;Tend=Tmax)
   @test all(isapprox.(rats,rate_fun.(tmid,1);rtol=0.33))
 end
+
+@testset "Input units, given spike train" begin
+  # post-pre spikes paradigm
+  # (nor really needed here, but useful for plasticity)
+  function ps_trains(rate::R,Δt_ro::R,Ttot::R;
+      tstart::R = 0.05) where R
+    post = collect(range(tstart,Ttot; step=inv(rate)))
+    pre = post .- Δt_ro
+    return [pre,post] 
+  end
+  function get_test_pop(rate,nreps,Δt_ro,connection_test)
+    Ttot = nreps/rate
+    prepostspikes = ps_trains(rate,Δt_ro,Ttot) 
+    gen = H.SGTrains(prepostspikes)
+    state = H.PopulationState(H.InputUnit(gen),2)
+    return H.PopulationInputTestWeights(state,connection_test)
+  end
+  connection_test = H.ConnectionWeights(fill(0.0,2,2))
+  nreps = 100
+  population = get_test_pop(0.5,nreps,2E-3,connection_test)
+  population.state.unittype.spike_generator.trains
+  network = H.RecurrentNetwork(population)
+  function simulate!(network,num_spikes)
+    t_now = 0.0
+    H.reset!(network) # clear spike trains etc
+    for _ in 1:num_spikes
+      t_now = H.dynamics_step_singlepopulation!(t_now,network)
+    end
+    H.flush_trains!(network)
+    return t_now
+  end
+  n_spikes = nreps*2-3
+  Tmax = simulate!(network,n_spikes)
+  trains_out1 =  population.state.trains_history[1]
+  target_trains1 = population.state.unittype.spike_generator.trains[1]
+  trains_out2 =  population.state.trains_history[2]
+  target_trains2 = population.state.unittype.spike_generator.trains[2]
+  ntest = nreps-10
+  @test all(trains_out1[1:ntest] .== target_trains1[1:ntest] )
+  @test all(trains_out2[1:ntest] .== target_trains2[1:ntest] )
+end
