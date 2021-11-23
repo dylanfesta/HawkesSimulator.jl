@@ -51,8 +51,8 @@ connection_test = let wmat =  fill(100.0,2,2)
   wmat[diagind(wmat)] .= 0.0
   τplus = 10E-3
   τminus = 10E-3
-  Aplus = 1E-2
-  Aminus = -1E-2
+  Aplus = 1E-1
+  Aminus = -1E-1
   npost,npre = size(wmat)
   stdp_plasticity = H.PairSTDP(τplus,τminus,Aplus,Aminus,npost,npre)
   H.ConnectionWeights(wmat,stdp_plasticity)
@@ -79,6 +79,58 @@ function simulate_plasticity_test!(network,num_spikes)
 end
 n_spikes = nreps*2-3
 Tmax = simulate_plasticity_test!(network,n_spikes)
+
+
+## test different deltas
+
+
+function test_stpd_rule(Δt::Real,connection;nreps=510,wstart=100.0)
+  population = get_test_pop(0.5,nreps,Δt,connection_test)
+  network = H.RecurrentNetwork(population)
+  wmat = connection_test.weights
+  fill!(wmat,wstart)
+  wmat[diagind(wmat)] .= 0.0
+  t_now = 0.0
+  H.reset!(network) # clear spike trains etc
+  num_spikes = nreps*2 - 10 # a bit less than total, for safety
+  for _ in 1:num_spikes
+    t_now = H.dynamics_step_singlepopulation!(t_now,network)
+    H.plasticity_update!(t_now,network)
+  end
+  w12,w21 = wmat[1,2],wmat[2,1]
+  H.reset!(network)
+  dw12 = (w12-wstart)/t_now
+  dw21 = (w21-wstart)/t_now
+  return dw12,dw21
+end
+
+connection_test = let wmat =  fill(100.0,2,2)
+  wmat[diagind(wmat)] .= 0.0
+  τplus = 10E-3
+  τminus = 10E-3
+  Aplus = 1E-1
+  Aminus = 1E-1
+  npost,npre = size(wmat)
+  stdp_plasticity = H.PairSTDP(τplus,τminus,Aplus,Aminus,npost,npre)
+  H.ConnectionWeights(wmat,stdp_plasticity)
+end
+_,_,dw12,dw21 = test_stpd_rule(1E-3,connection_test)
+
+nsteps = 100
+deltats = range(0.1E-3,100E-3;length=nsteps)
+out = Vector{Float64}(undef,2*nsteps)
+
+for (i,Δt) in enumerate(deltats)
+  _,_,dw12,dw21 = test_stpd_rule(Δt,connection_test)
+  out[nsteps+i]=dw21
+  out[nsteps-i+1]=dw12
+end
+
+deltats_all = vcat(-reverse(deltats),deltats)
+
+plot(deltats_all,out;leg=false,xlabel="Delta t",ylabel="dw/dt")
+
+
 
 
 # # triplets version: post pre , post post

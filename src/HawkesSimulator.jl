@@ -125,9 +125,11 @@ function reset!(rn::RecurrentNetwork)
   for pop in rn.populations
     reset!(pop.state)
     # reset plasticity operators if present
-    for conn in pop.connections
-      for plast in conn.plasticities
-        reset!(plast)
+    if isdefined(pop,:connections) # because input has no connection field
+      for conn in pop.connections
+        for plast in conn.plasticities
+          reset!(plast)
+        end
       end
     end
   end
