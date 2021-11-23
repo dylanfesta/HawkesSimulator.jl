@@ -45,9 +45,10 @@ _ = let trains = post_pre_spiketrains(5.0,20E-3,1.0)
 end
 
 # Now I define a population of input neurons using this input protocol.
-# The not that the Population object includes the weight matrix and the 
-# plasticity rules associated to it. Both wrapped into a `Connection`
-# object. For now, I consider it as an input parameter of this function.
+# The Population object includes the weight matrix and the 
+# plasticity rules associated to it, both wrapped in the `Connection`
+# object. I consider the connection as an input parameter of this function,
+# to be set externally with the desired plasticity rule.
 #
 # Note that I define the population as `PopulationInputTestWeights` to
 # indicate non-interacting weights
@@ -62,16 +63,16 @@ end
 # ## Constructors
 # Here I define a function that tests the plasticity rule.
 # That is, given a $Δt$, it creates the input neurons, then
-# it defined a network, and iterates it dynamically for 
+# it defines a network, and iterates it dynamically for 
 # a certain number of pre-post repetitions.
-# Then it outputs the weight total change divided by time
+# Finally it outputs the weight total change divided by time
 # (so it's a weight change per second)
 # 
 # Since both neurons have the same plasticity rule, a 
 # positive pre-post $\Delta t$ for neuron A, impacting the
 #  $w_{\text{AB}}$ weight, is the 
 # equivalent of a negative pre-post $\Delta t$ for neuron B, 
-# impacting the $w_{\text{BA}}$ weights.
+# impacting the $w_{\text{BA}}$ weight.
 
 function test_stpd_rule(Δt::Real,connection::H.Connection;
     nreps=510,wstart=100.0,rate=0.5)
@@ -95,8 +96,10 @@ function test_stpd_rule(Δt::Real,connection::H.Connection;
 end
 
 # ## STDP rule
-# Here I define the connection to test. Pairwise STDP rule.
+# Here I define the plasticty type and the parameters that I want to test. 
+# I choose the pairwise STDP rule.
 # I initialize the weight matrix to 100.0 
+# 
 # Note once again that neurons are not interacting. The sole purpose
 # of the "dummy" weights it to be changed by plasticity.
 
@@ -121,7 +124,7 @@ println("change in w12 : $(dw12), change in w21 $(dw21)")
 
 # ## STDP curve
 
-# let's test the STDP for varying $\Delta t$s
+# Compute and plot the weight changes due to STDP for varying $\Delta t$s
 
 nsteps = 200
 deltats = range(0.1E-3,100E-3;length=nsteps)
@@ -135,7 +138,7 @@ for (i,Δt) in enumerate(deltats)
 end
 
 
-plot(deltats_all,out;leg=false,xlabel="Delta t",ylabel="dw/dt")
+plot(deltats_all,out;leg=false,xlabel="Delta t",ylabel="dw/dt",linewidth=3)
 
 
 # **THE END**
