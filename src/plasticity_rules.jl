@@ -14,38 +14,6 @@ function plasticity_update!(t_now::Real,ntw::RecurrentNetwork)
   return nothing
 end
 
-# traces as structs
-# (after all, why not?  ... why shouldn't I use a struct?)
-
-struct Trace
-  val::Vector{Float64}
-  τ::Float64
-  t_last::Ref{Float64}
-  function Trace(τ::R,n::Integer) where R
-    val = fill(zero(R),n)
-    t_last = Ref(0.0)
-    return new(val,τ,t_last)
-  end
-end
-function propagate!(tnow::Float64,tra::Trace)
-  Δt = tnow - tra.t_last[]
-  tra.val .*= exp(-Δt/tra.τ)
-  tra.t_last[]=tnow
-  return nothing
-end
-# updates single element of trace, unless it is nothing
-function update_now!(tra::Trace,idx_update::Int64,up_val::Float64=1.0)
-  if idx_update != 0
-    tra.val[idx_update] += up_val
-  end
-  return nothing
-end
-
-function reset!(tra::Trace)
-  fill!(tra.val,0.0) 
-  tra.t_last[]=0.0
-  return nothing
-end
 
 # bounds are structures too!
 # because!

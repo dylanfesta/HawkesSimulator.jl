@@ -218,3 +218,14 @@ end
   @test all(trains_out1[1:ntest] .== target_trains1[1:ntest] )
   @test all(trains_out2[1:ntest] .== target_trains2[1:ntest] )
 end
+
+
+@testset "special case of exponential kernel" begin
+  nneus = 1
+  tauker = 12.34E-2
+  trace_ker = H.Trace(tauker,nneus)
+  H.update_now_normed!(trace_ker,1)
+  get_trace(t) = H.trace_proposal!([NaN,],t,trace_ker)[1]
+  _area = quadgk(get_trace,0,2.0)[1]
+  @test isapprox(_area,1.0;atol=1E-5)
+end

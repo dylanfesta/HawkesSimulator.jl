@@ -156,12 +156,66 @@ function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
     nonlinearity=nonlinearity))
 end
 
+###################3
+# traces as structs
+# (after all, why not?  ... why shouldn't I use a struct?)
+
+struct Trace
+  val::Vector{Float64}
+  τ::Float64
+  t_last::Ref{Float64}
+  function Trace(τ::R,n::Integer) where R
+    val = fill(zero(R),n)
+    t_last = Ref(0.0)
+    return new(val,τ,t_last)
+  end
+end
+
+function nneurons(tra::Trace)
+  return length(tra.val)
+end
+
+function propagate!(tnow::Float64,tra::Trace)
+  Δt = tnow - tra.t_last[]
+  tra.val .*= exp(-Δt/tra.τ)
+  tra.t_last[]=tnow
+  return nothing
+end
+# updates single element of trace, unless it is nothing
+function update_now!(tra::Trace,idx_update::Int64,up_val::Float64=1.0)
+  if idx_update != 0
+    tra.val[idx_update] += up_val
+  end
+  return nothing
+end
+
+# assumes idx is valid, and area under the cuve is 1.0
+function update_now_normed!(tra::Trace,idx_update::Int64)
+  tra.val[idx_update] += inv(tra.τ)
+end
+
+function reset!(tra::Trace)
+  fill!(tra.val,0.0) 
+  tra.t_last[]=0.0
+  return nothing
+end
+
+# proposal of future trace. Useful to compute quantities without advancing the trace
+function trace_proposal!(proposal::Vector{R},tnow::R,tra::Trace) where R
+  Δt = tnow - tra.t_last[]
+  @. proposal = tra.val * exp(-Δt/tra.τ)
+  return proposal
+end
+
 #############
 # everything else
 
+# general Hawkes for any type of kernel
 include("spike_generation_hawkes.jl")
 # the interaction_kernel and interaction_kernel_upper come from here : 
 include("kernels.jl")
+# special case optimized for exponential kernels
+include("spike_generation_expkernel.jl")
 # apply_nonlinearity defined here
 include("nonlinearities.jl")
 # input-neurons 
