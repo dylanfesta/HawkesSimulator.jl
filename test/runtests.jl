@@ -223,9 +223,42 @@ end
 @testset "special case of exponential kernel" begin
   nneus = 1
   tauker = 12.34E-2
-  trace_ker = H.Trace(tauker,nneus)
-  H.update_now_normed!(trace_ker,1)
+  trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
+  H.update_for_dynamics!(trace_ker,1)
   get_trace(t) = H.trace_proposal!([NaN,],t,trace_ker)[1]
   _area = quadgk(get_trace,0,2.0)[1]
   @test isapprox(_area,1.0;atol=1E-5)
+
+  # like 2D test above, but for ExpKernel types
+
+  nneus = 2
+  tauker = 0.5
+  trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
+  trace_useless = H.Trace(123.0,nneus,H.ForPlasticity())
+
+  popstate = H.PopulationStateExpKernel(nneus,trace_ker,trace_useless)
+  myweights = [0.31 -0.3
+              0.9  -0.15]
+  myinputs = [5.0 , 5.0]
+  rates_analytic  = inv(I-myweights)*myinputs
+
+  connection = H.ConnectionExpKernel(myweights,trace_ker)
+  population = H.PopulationExpKernel(popstate,connection,myinputs)
+
+  n_spikes = 10_000
+  recorder = H.RecFullTrain(n_spikes,1)
+  network = H.RecurrentNetworkExpKernel(population,recorder)
+
+  function simulate!(network,num_spikes)
+    t_now = 0.0
+    H.reset!(network) # clear spike trains etc
+    for _ in 1:num_spikes
+      t_now = H.dynamics_step!(t_now,network)
+    end
+    return t_now
+  end
+  Tmax = simulate!(network,n_spikes)
+  rates_ntw = H.numerical_rates(recorder,nneus,Tmax)
+  @test all(isapprox.(rates_analytic,rates_ntw;rtol=0.2))
 end
+

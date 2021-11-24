@@ -43,7 +43,6 @@ connection = H.ConnectionExpKernel(myweights,trace_ker)
 population = H.PopulationExpKernel(popstate,connection,myinputs)
 
 n_spikes = 10_000
-
 recorder = H.RecFullTrain(n_spikes,1)
 network = H.RecurrentNetworkExpKernel(population,recorder)
 
@@ -57,7 +56,7 @@ function simulate!(network,num_spikes)
 end
 
 Tmax = simulate!(network,n_spikes)
-
+rates = H.numerical_rates(recorder,nneus,Tmax)
 
 ##
 error("shtop!")

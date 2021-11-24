@@ -6,7 +6,7 @@
 
 # the taus are in the trace, now. No unittype or kernel object
 # this is pretty much a wrapper around neural traces
-struct PopulationStateExpKernel{N} 
+struct PopulationStateExpKernel{N}  <: AbstractPopulationState
   label::Symbol
   n::Int64
   traces::NTuple{N,Trace}
@@ -83,7 +83,7 @@ struct RecurrentNetworkExpKernel{N,TP<:NTuple{N,AbstractPopulation},TR<:NTuple{N
   recorders::TR
 end
 # one population constructor
-function RecurrentNetworkExpKernel(pop::PopulationExpKernel,recorders...)
+function RecurrentNetworkExpKernel(pop::AbstractPopulation,recorders...)
   if isempty(recorders)
     recorders=NTuple{0,RecNothing}()
   end
@@ -116,8 +116,8 @@ end
 function burn_spike!(t_spike::Real,ps::PopulationStateExpKernel,idx_update::Integer)
   # take care of traces  
   for tra in ps.traces
-    propagate!(t_spike,tra) # update full trace to t_spike 
-    update_now_normed!(tra,idx_update) # add pulse at index
+    propagate_for_dynamics!(t_spike,tra) # update full trace to t_spike 
+    update_for_dynamics!(tra,idx_update) # add pulse at index
   end
   return nothing
 end
@@ -168,7 +168,7 @@ struct RecFullTrain{N} <: Recorder
   timesneurons::NTuple{N,Tuple{Vector{Float64},Vector{Int64}}}
   k_rec::Vector{Int64}
 end
-function RecFullTrain(nrec::Integer,npops::Integer)
+function RecFullTrain(nrec::Integer,(npops::Integer)=1)
   timesneurons=ntuple(_-> (fill(NaN,nrec),fill(-1,nrec)),npops)
   k_rec = fill(0,nrec)
   RecFullTrain(nrec,timesneurons,k_rec)
@@ -182,19 +182,22 @@ function reset!(rec::RecFullTrain)
   return nothing
 end
 
-function record_stuff!(rec::RecFullTrain,::RecurrentNetworkExpKernel,
-    tspike::Real,idxpopspike::Integer,idxneuspike::Integer)
-  k = rec.k_rec[idxpopspike]+1
-  spiketimes,spikeneurons = rec.timesneurons[idxpopspike]
+
+# general signature: record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
+
+function record_stuff!(rec::RecFullTrain,tfire::Real,
+    popfire::Integer,neufire::Integer,::Symbol,
+    ::RecurrentNetworkExpKernel)
+  k = rec.k_rec[neufire]+1
+  spiketimes,spikeneurons = rec.timesneurons[popfire]
   if !checkbounds(Bool,spiketimes,k)
     @error "recorder full!"
     return nothing
   end
-  @inbounds spiketimes[k] = tspike
-  @inbounds spikeneurons[k] = idxneuspike
-  rec.k_rec[idxpopspike] = k
+  @inbounds spiketimes[k] = tfire
+  @inbounds spikeneurons[k] = neufire
+  rec.k_rec[neufire] = k
 end
-
 
 function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
   npops = npopulations(ntw)
@@ -211,12 +214,55 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
     (proposals_best[kn], neuron_best[kn]) = findmin(pop.spike_proposals) 
   end 
   # select next spike (best across all input_networks)
-  (tbest,kbest) = findmin(proposals_best)
+  (tfire,popfire) = findmin(proposals_best)
+  neufire = neuron_best[popfire]
+  psfire = ntw.populations[popfire].state
+  label_fire = psfire.label
   # update stuff for that specific neuron/population state :
-  burn_spike!(tbest,ntw.populations[kbest].state,neuron_best[kbest])
+  burn_spike!(tfire,psfire,neufire)
+  # apply plasticity rules ! Each rule in each connection in each population
+  for pop in enumerate(ntw.populations)
+    post = pop.state
+    for (conn,pre) in zip(pop.connections,pop.pre_states)
+      for plast in conn.plasticities
+        plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
+      end
+    end
+  end
+  # now trigger recorders. 
+  # Recorder objects will take care of which population to target
   for rec in ntw.recorders
-    record_stuff!(rec,ntw,tbest,kbest,neuron_best[kbest])
+    record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
   end
   # update t_now 
-  return tbest
+  return tfire
+end
+
+function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetworkExpKernel)
+  # update proposed next spike for each postsynaptic neuron
+  popfire = 1 
+  pop = ntw.populations[1]
+  nneu = nneurons(pop)
+  for ineu in 1:nneu
+    pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu) 
+  end
+  (tfire, neufire) = findmin(pop.spike_proposals) 
+  psfire = pop.state
+  label_fire = psfire.label
+  # update stuff for that specific neuron/population state :
+  burn_spike!(tfire,psfire,neufire)
+  # apply plasticity rules ! Each rule in each connection in each population
+  post = psfire
+  for (conn,pre) in zip(pop.connections,pop.pre_states)
+    for plast in conn.plasticities
+      plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
+    end
+  end
+  # now trigger recorders. 
+  # Recorder objects will take care of which population to target
+  for rec in ntw.recorders
+    record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
+  end
+  # update t_now 
+  return tfire
 end

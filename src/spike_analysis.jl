@@ -178,3 +178,33 @@ function draw_spike_raster(trains::Vector{Vector{Float64}},
   end
   return ret
 end
+
+
+#### this is the part which involves reader objects
+
+function get_spiketimes_spikeneurons(rec::RecFullTrain,
+    (pop_idx::Integer)=1)
+  spiketimes,spikeneurons = rec.timesneurons[pop_idx]
+  spkt = filter(isfinite,spiketimes)
+  spkn = filter(>(0),spikeneurons)
+  return spkt,spkn
+end
+function spiketn_to_trains(spiketimes::Vector{<:Real},
+    spikeneurons::Vector{<:Integer},Nneus::Integer)
+  trains = map(_-> Float64[],1:Nneus)
+  for (spkt,spkn) in zip(spiketimes,spikeneurons)
+    push!(trains[spkn],spkt)
+  end
+  return trains
+end
+function get_trains(rec::RecFullTrain,Nneus::Integer,
+    (pop_idx::Integer)=1)
+  spiketn = get_spiketimes_spikeneurons(rec,pop_idx)
+  return spiketn_to_trains(spiketn...,Nneus)
+end
+
+function numerical_rates(rec::RecFullTrain,Nneus::Integer,Tend::Real,
+  (pop_idx::Integer)=1;Tstart=0.0)
+  trains = get_trains(rec,Nneus,pop_idx)  
+  return numerical_rate.(trains;Tstart=Tstart,Tend=Tend)
+end

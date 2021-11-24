@@ -117,3 +117,11 @@ end
 function compute_next_spike(t_now::Float64,sg::SGPoissonFunction,idx_neu::Integer)
   return _rand_by_thinning(t_now,idx_neu,sg.ratefunction,sg.ratefunction_upper)
 end
+
+
+# compatibility with ExpKernel stuff
+# let's just do nothing, because inputs never depend on past states
+function burn_spike!(::Real,ps::PopulationState,::Integer)
+  typeassert(ps.unittype,InputUnit)
+  return nothing
+end

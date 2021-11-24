@@ -35,6 +35,10 @@ function ConnectionWeights(weights::Matrix{Float64},
      (plasticity_rules::PL where PL<:PlasticityRule)...)
   return ConnectionWeights(weights,plasticity_rules)
 end
+function reset!(conn::ConnectionWeights)
+  reset!.(conn.plasticities)
+  return nothing
+end
 
 abstract type AbstractNonlinearity end
 # this one is the default
@@ -45,7 +49,11 @@ struct NLRelu <: AbstractNonlinearity end
 # this can be generalized later
 # abstract type ExternalInput end
 
-struct PopulationState{UT <:UnitType}
+abstract type AbstractPopulationState end
+# includes the special case of ExpKernel, which has no unit type
+# must still have n and label.
+
+struct PopulationState{UT <:UnitType} <: AbstractPopulationState
   label::Symbol
   n::Int64
   unittype::UT
@@ -156,18 +164,31 @@ function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
     nonlinearity=nonlinearity))
 end
 
-###################3
+###################
 # traces as structs
 # (after all, why not?  ... why shouldn't I use a struct?)
 
-struct Trace
+# trace for dynamics : all receive an update 
+# as soon as the spike is produced. The update is normed
+# so that the integral of kernel is one
+
+# trace for plasticity : ignored by the dynamcs, 
+# plasticity rules should take care of it.
+
+abstract type TracePurpose end
+struct ForDynamics <: TracePurpose end
+struct ForPlasticity <: TracePurpose end
+
+struct Trace{P<:TracePurpose}
   val::Vector{Float64}
   τ::Float64
   t_last::Ref{Float64}
-  function Trace(τ::R,n::Integer) where R
-    val = fill(zero(R),n)
+  purpose::P
+  function Trace(τ::Real,n::Integer,
+      (purpose::P)=ForPlasticity()) where {P<:TracePurpose}
+    val = fill(0.0,n)
     t_last = Ref(0.0)
-    return new(val,τ,t_last)
+    return new{P}(val,τ,t_last,purpose)
   end
 end
 
@@ -189,9 +210,23 @@ function update_now!(tra::Trace,idx_update::Int64,up_val::Float64=1.0)
   return nothing
 end
 
-# assumes idx is valid, and area under the cuve is 1.0
-function update_now_normed!(tra::Trace,idx_update::Int64)
+# updates only if the trace is specifically for dynamics
+function update_for_dynamics!(::Trace,::Int64)
+  return nothing
+end
+function update_for_dynamics!(tra::Trace{ForDynamics},idx_update::Int64)
   tra.val[idx_update] += inv(tra.τ)
+  return nothing
+end
+# same with propagate
+function propagate_for_dynamics!(::Float64,::Trace)
+  return nothing
+end
+function propagate_for_dynamics!(tnow::Float64,tra::Trace{ForDynamics})
+  Δt = tnow - tra.t_last[]
+  tra.val .*= exp(-Δt/tra.τ)
+  tra.t_last[]=tnow
+  return nothing
 end
 
 function reset!(tra::Trace)
