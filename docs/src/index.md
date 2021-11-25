@@ -13,7 +13,7 @@ CurrentModule = HawkesSimulator
 
 1. [**1D and 2D, exponential kernel**](./exp_1and2D.md)
 1. [**1D delayed-alpha kernel**](./alphadelay.md)
-1. [**Plasticity test, with pairwise STPD**](./plasticty_STDP.md)
+1. [**Plasticity examples, with pairwise STPD and triplets**](./plasticty_STDP.md)
 
 ## Index
 
