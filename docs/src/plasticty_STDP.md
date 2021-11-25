@@ -269,12 +269,7 @@ Tend = 300.0
 ratestest = range(ratemin,ratemax;length=nsteps)
 testret = fill(NaN,nsteps,nsteps)
 
-for i in 1:nsteps, j in i:nsteps
-````
-
-j is high, i is low or equal
-
-````@example plasticty_STDP
+for i in 1:nsteps, j in i:nsteps # j is high, i is low or equal
   @info "now processing $i,$j (out of $nsteps)"
   (low_high,high_low) = test_triplets_rule(ratestest[i],
     ratestest[j], connection_test ; Tend=Tend)
