@@ -50,6 +50,28 @@ function find_which_spiked(label_spike::Symbol,idx_spike::Int64,
   return (k_post,k_pre)
 end
 
+
+# two different signatures, but unified base plasticity update
+
+# signature for ExpKernel: plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
+@inline function plasticity_update!(tfire::Real,label_spike::Symbol,
+    neufire::Integer,
+    pspre::AbstractPopulationState,conn::Connection,
+    pspost::AbstractPopulationState,
+    plast::PlasticityRule)
+  k_post,k_pre = find_which_spiked(label_spike,neufire,pspost,pspre)
+  return plasticity_update!(tfire,k_post,k_pre,pspre,conn,pspost,plast)
+end
+
+# signature for general Hawkes
+@inline function plasticity_update!(t_spike::Real,
+    pspost::PopulationState,conn::Connection,pspre::PopulationState,
+    plast::PlasticityRule)
+  k_post,k_pre = find_which_spiked(t_spike,pspost,pspre)
+  return plasticity_update!(t_spike,k_post,k_pre,pspre,conn,pspost,plast)
+end
+
+
 # Pairwise plasticity 
 struct PairSTDP <: PlasticityRule
   Aplus::Float64
@@ -70,23 +92,6 @@ function reset!(pl::PairSTDP)
   return nothing
 end
 
-function plasticity_update!(t_spike::Real,
-    pspost::PopulationState,conn::Connection,pspre::PopulationState,
-    plast::PairSTDP)
-  k_post,k_pre = find_which_spiked(t_spike,pspost,pspre)
-  return plasticity_update!(t_spike,k_post,k_pre,pspre,conn,pspost,plast)
-end
-
-# signature: plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
-
-function plasticity_update!(tfire::Real,label_spike::Symbol,
-    neufire::Integer,
-    pspre::AbstractPopulationState,conn::Connection,
-    pspost::AbstractPopulationState,
-    plast::PairSTDP)
-  k_post,k_pre = find_which_spiked(label_spike,neufire,pspost,pspre)
-  return plasticity_update!(tfire,k_post,k_pre,pspre,conn,pspost,plast)
-end
 
 function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,plast::PairSTDP)
@@ -123,3 +128,79 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   end
   return nothing
 end
+
+### Triplets rule
+struct PlasticityTriplets <: PlasticityRule
+  A2plus::Float64
+  A3plus::Float64
+  A2minus::Float64
+  A3minus::Float64
+  o1::Trace # pOst tau_minus
+  o2::Trace # pOst tau_y
+  r1::Trace # pRe  tau_plus
+  r2::Trace # pRe  tau_y
+  bounds::PlasticityBounds
+end
+function PlasticityTriplets(τplus::R,τminus::R,τx::R,τy::R,
+    A2plus::R,A3plus::R,A2minus::R,A3minus::R,n_post::I,n_pre::I;
+      plasticity_bounds=PlasticityBoundsNonnegative()) where {R,I}
+  o1 = Trace(τminus,n_post,ForPlasticity())    
+  o2 = Trace(τy,n_post,ForPlasticity())    
+  r1 = Trace(τplus,n_pre,ForPlasticity())    
+  r2 = Trace(τx,n_pre,ForPlasticity())    
+  PlasticityTriplets(A2plus,A3plus,A2minus,A3minus,
+    o1,o2,r1,r2,plasticity_bounds)
+end
+function reset!(pl::PlasticityTriplets)
+  reset!.((pl.o1,pl.o2,pl.r1,pl.r2))
+  return nothing
+end
+
+
+function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+    ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
+    plast::PlasticityTriplets)
+  if iszero(k_pre_spike) && iszero(k_post_spike)
+    return nothing
+  end
+  # update all pre and post traces to t_now
+  propagate!.(t_spike,(plast.o1,plast.o2,plast.r1,plast.r2))
+  # update the plasticity trace variables for o1 and r1
+  if !iszero(k_post_spike)
+    update_now!(plast.o1,k_post_spike)
+  end
+  if !iszero(k_pre_spike)
+    update_now!(plast.r1,k_pre_spike)
+  end
+  # update synapses
+  weights=conn.weights
+  npost,npre = size(weights)
+  if !iszero(k_pre_spike)
+    # k is presynaptic: move vertically along k_pre column 
+    for i_post in 1:npost
+      wik = weights[i_post,k_pre_spike] 
+      if wik > 0
+        Δw = -plast.o1.val[i_post]*(plast.A2minus+plast.A3minus*plast.r2.val[k_pre_spike])
+        weights[i_post,k_pre_spike] =  plast.bounds(wik,Δw)
+      end
+    end
+  end
+  if !iszero(k_post_spike)
+    # k is postsynaptic: move horizontally along k_post row
+    for j_pre in 1:npre
+      wkj = weights[k_post_spike,j_pre] 
+      if wkj > 0
+        Δw = plast.r1.val[j_pre]*(plast.A2plus+plast.A3plus*plast.o2.val[k_post_spike])
+        weights[k_post_spike,j_pre] =  plast.bounds(wkj,Δw)
+      end
+    end
+  end
+  # update the plasticity trace variables for o2 and r2
+  if !iszero(k_post_spike)
+    update_now!(plast.o2,k_post_spike)
+  end
+  if !iszero(k_pre_spike)
+    update_now!(plast.r2,k_pre_spike)
+  end
+  return nothing
+end    

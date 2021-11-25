@@ -257,8 +257,20 @@ end
     end
     return t_now
   end
+  function simulate2!(network,num_spikes)
+    t_now = 0.0
+    H.reset!(network) # clear spike trains etc
+    for _ in 1:num_spikes
+      t_now = H.dynamics_step_singlepopulation!(t_now,network)
+    end
+    return t_now
+  end
   Tmax = simulate!(network,n_spikes)
-  rates_ntw = H.numerical_rates(recorder,nneus,Tmax)
-  @test all(isapprox.(rates_analytic,rates_ntw;rtol=0.2))
+  rates_ntw1 = H.numerical_rates(recorder,nneus,Tmax)
+  rates_ntw2 = H.numerical_rates(recorder,nneus,Tmax)
+  @test all(isapprox.(rates_analytic,rates_ntw1;rtol=0.2))
+  @test all(isapprox.(rates_analytic,rates_ntw2;rtol=0.2))
 end
 
+
+##

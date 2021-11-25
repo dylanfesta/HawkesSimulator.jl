@@ -160,6 +160,165 @@ end
 plot(deltats_all,out;leg=false,xlabel="Delta t",ylabel="dw/dt",linewidth=3)
 ````
 
+Triplets rule
+
+## Stimulation protocol
+
+In this test, I will consider Poisson units that fire at a fixed rate
+(pretty much two independent Poisson processes)
+
+As explained before, the `Population`` object includes the weight matrix
+and the  plasticity rules associated to it, both wrapped in the `Connection`
+object. I consider the connection as an input parameter of this function,
+to be set externally with the desired plasticity rule.
+
+````@example plasticty_STDP
+function post_pre_population(rateA::Real,rateB::Real,connection::H.Connection)
+  gen = H.SGPoisson([rateA,rateB])
+  state = H.PopulationState(H.InputUnit(gen),2)
+  return H.PopulationInputTestWeights(state,connection)
+end
+````
+
+## Constructors
+Here I define a function that tests the plasticity rule.
+That is, creates the Poisson units that fire with the rates `rateA` and `rateB`,
+ then defines a network, and iterates it dynamically until `Tend`.
+Finally, it outputs the weight total change divided by time
+(so it's a weight change per second)
+
+Since both neurons have the same plasticity rule, a
+positive pre-post $\Delta t$ for neuron A, impacting the
+ $w_{\text{AB}}$ weight, is the
+equivalent of a negative pre-post $\Delta t$ for neuron B,
+impacting the $w_{\text{BA}}$ weight.
+
+````@example plasticty_STDP
+function test_triplets_rule(rateA::Real,rateB::Real,connection::H.Connection;
+    Tend::Real=150.0,wstart=100.0)
+  population = post_pre_population(rateA,rateB,connection)
+  network = H.RecurrentNetworkExpKernel(population)
+  wmat = connection.weights
+  fill!(wmat,wstart)
+  wmat[diagind(wmat)] .= 0.0
+  t_now = 0.0
+  H.reset!(network) # clear spike trains etc
+  while t_now < Tend
+    t_now = H.dynamics_step_singlepopulation!(t_now,network)
+  end
+  w12,w21 = wmat[1,2],wmat[2,1]
+  dw12 = (w12-wstart)/Tend
+  dw21 = (w21-wstart)/Tend
+  return dw12,dw21
+end
+````
+
+## Triplets rule
+Here I define the plasticty type and the parameters that I want to test.
+
+Note once again that neurons are not interacting. The sole purpose
+of the "dummy" weights it to be changed by plasticity.
+
+````@example plasticty_STDP
+connection_test = let wmat =  fill(100.0,2,2)
+  wmat[diagind(wmat)] .= 0.0
+  n_post,n_pre = size(wmat)
+  τplus = 17E-3 # 16.8
+  τminus = 34E-3 # 33.7
+  τx = 100E-3 # 101
+  τy = 120E-3 # 125
+  plast_eps = 1E-3
+  A2plus = 7.5E-7*plast_eps
+  A3plus = 9.3*plast_eps
+  A2minus = 7.0*plast_eps
+  A3minus = 2.3E-1*plast_eps
+  plast_triplets = H.PlasticityTriplets(τplus,τminus,τx,τy,A2plus,A3plus,
+    A2minus,A3minus,n_post,n_pre)
+  H.ConnectionWeights(wmat,plast_triplets)
+end
+````
+
+let's try single runs
+
+````@example plasticty_STDP
+therates = (45.0,60.0)
+dw12,dw21 = test_triplets_rule(therates...,connection_test)
+println("rates: $(therates) change in w12 : $(dw12), change in w21 $(dw21)")
+````
+
+at high rates, both synapses are potentiated!
+
+````@example plasticty_STDP
+therates = (1.0,3.0)
+dw12,dw21 = test_triplets_rule(therates...,connection_test)
+println("rates: $(therates) change in w12 : $(dw12), change in w21 $(dw21)")
+````
+
+at lower rates, both connections are depotentiated!
+
+## Plasticity changes as function of frequency
+
+Compute and plot the weight changes due to STDP for varying $\Delta t$s
+
+````@example plasticty_STDP
+nsteps = 35
+ratemin = 0.1
+ratemax = 60.0
+Tend = 300.0
+
+ratestest = range(ratemin,ratemax;length=nsteps)
+testret = fill(NaN,nsteps,nsteps)
+
+for i in 1:nsteps, j in i:nsteps
+````
+
+j is high, i is low or equal
+
+````@example plasticty_STDP
+  @info "now processing $i,$j (out of $nsteps)"
+  (low_high,high_low) = test_triplets_rule(ratestest[i],
+    ratestest[j], connection_test ; Tend=Tend)
+  testret[i,j] = low_high
+  testret[j,i] = high_low
+end
+
+heatmap(ratestest,ratestest,testret;
+  xlabel="rate pre",ylabel="rate post",
+  ratio=1,xlims=(0,ratemax))
+````
+
+Ok, here we see that the connection is stronger for very high rates, both pre and post.
+But what about relative increase or decrease? Below we consider the relative to
+positive or negative max.
+
+````@example plasticty_STDP
+function plus_minus_rescale(mat::Array{R}) where R
+  down,up = extrema(mat)
+  @assert (down < 0.0) && (up > 0.0)
+  pluspart = mat ./ up
+  minuspart = mat ./ abs(down)
+  ret = similar(mat)
+  for i in eachindex(mat)
+    if mat[i] > 0
+      ret[i] = pluspart[i]
+    else
+      ret[i] = minuspart[i]
+    end
+  end
+  return ret
+end
+
+heatmap(ratestest,ratestest,plus_minus_rescale(testret);
+  color=:seismic,
+  xlabel="rate pre",ylabel="rate post",
+  ratio=1,xlims=(0,ratemax))
+````
+
+In this plot, we see the level of potentiation/depotentation relative to
+the maximum reached. This shows more clearly that there is
+depotentiation at low rates. And potentiation only when rates are suffciently
+high.
+
 **THE END**
 
 ---

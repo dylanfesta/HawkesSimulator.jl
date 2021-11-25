@@ -85,7 +85,9 @@ end
 # one population constructor
 function RecurrentNetworkExpKernel(pop::AbstractPopulation,recorders...)
   if isempty(recorders)
-    recorders=NTuple{0,RecNothing}()
+    #recorders=NTuple{0,RecNothing}()
+    recorders=(RecNothing(),)
+    #@show typeof(recorders)
   end
   return RecurrentNetworkExpKernel((pop,),recorders)
 end
@@ -156,10 +158,21 @@ end
 
 ###
 # recorders methods
-struct RecNothing end
+struct RecNothing <: Recorder end
 
 function reset!(::RecNothing)
   return nothing
+end
+
+# general signature: record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
+# @inline function record_stuff!(::RecNothing,::Real,
+#     ::Integer,::Integer,::Symbol,
+#     ::RecurrentNetworkExpKernel)
+#   return nothing  
+# end
+@inline function record_stuff!(::RecNothing,::Real,
+    whatevs...)
+  return nothing  
 end
 
 
@@ -170,7 +183,7 @@ struct RecFullTrain{N} <: Recorder
 end
 function RecFullTrain(nrec::Integer,(npops::Integer)=1)
   timesneurons=ntuple(_-> (fill(NaN,nrec),fill(-1,nrec)),npops)
-  k_rec = fill(0,nrec)
+  k_rec = fill(0,npops)
   RecFullTrain(nrec,timesneurons,k_rec)
 end
 function reset!(rec::RecFullTrain)
@@ -188,7 +201,7 @@ end
 function record_stuff!(rec::RecFullTrain,tfire::Real,
     popfire::Integer,neufire::Integer,::Symbol,
     ::RecurrentNetworkExpKernel)
-  k = rec.k_rec[neufire]+1
+  k = rec.k_rec[popfire]+1
   spiketimes,spikeneurons = rec.timesneurons[popfire]
   if !checkbounds(Bool,spiketimes,k)
     @error "recorder full!"
@@ -196,7 +209,8 @@ function record_stuff!(rec::RecFullTrain,tfire::Real,
   end
   @inbounds spiketimes[k] = tfire
   @inbounds spikeneurons[k] = neufire
-  rec.k_rec[neufire] = k
+  rec.k_rec[popfire] = k
+  return nothing
 end
 
 function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
@@ -221,7 +235,7 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
   # update stuff for that specific neuron/population state :
   burn_spike!(tfire,psfire,neufire)
   # apply plasticity rules ! Each rule in each connection in each population
-  for pop in enumerate(ntw.populations)
+  for pop in ntw.populations
     post = pop.state
     for (conn,pre) in zip(pop.connections,pop.pre_states)
       for plast in conn.plasticities
