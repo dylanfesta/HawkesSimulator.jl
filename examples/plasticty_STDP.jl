@@ -252,8 +252,7 @@ heatmap(ratestest,ratestest,testret;
   ratio=1,xlims=(0,ratemax))
 
 # Ok, here we see that the connection is stronger for very high rates, both pre and post.
-# But what about relative increase or decrease? Below we consider the relative to
-# positive or negative max.
+# But what about relative increase or decrease?
 
 function plus_minus_rescale(mat::Array{R}) where R
   down,up = extrema(mat)
@@ -276,8 +275,8 @@ heatmap(ratestest,ratestest,plus_minus_rescale(testret);
   xlabel="rate pre",ylabel="rate post",
   ratio=1,xlims=(0,ratemax))
 
-# In this plot, we see the level of potentiation/depotentation relative to 
-# the maximum reached. This shows more clearly that there is 
+# In this plot, we see the level of potentiation/depotentation as a fraction of
+# to the maximum value reached. This shows more clearly that there is 
 # depotentiation at low rates. And potentiation only when rates are suffciently 
 # high.
 

@@ -242,6 +242,11 @@ function trace_proposal!(proposal::Vector{R},tnow::R,tra::Trace) where R
   return proposal
 end
 
+
+#### Small general utility functions
+@inline hardbounds(x::R,low::R,high::R) where R = min(high,max(x,low))
+
+
 #############
 # everything else
 
@@ -257,6 +262,7 @@ include("nonlinearities.jl")
 include("inputs.jl")
 # apply_plasticities defined here
 include("plasticity_rules.jl")
+include("plasticity_heterosynaptic.jl")
 # analyze the output: mean, covariance, etc
 include("spike_analysis.jl")
 

@@ -95,11 +95,11 @@ end
 
 function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,plast::PairSTDP)
-  weights = conn.weights
-  npost,npre = size(weights)
   if iszero(k_pre_spike) && iszero(k_post_spike)
     return nothing
   end
+  weights = conn.weights
+  npost,npre = size(weights)
   # update all pre and post traces to t_now
   propagate!(t_spike,plast.pre_trace)
   propagate!(t_spike,plast.post_trace)
@@ -203,4 +203,70 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     update_now!(plast.r2,k_pre_spike)
   end
   return nothing
-end    
+end
+
+
+# Inhibitory stabilization, Vogels-Sprekeler 2011
+
+# Warning : this formulation likely assumes all positive weights !
+
+struct PlasticityInhibitory <: PlasticityRule
+  τ::Float64
+  η::Float64
+  α::Float64
+  o::Trace # pOst
+  r::Trace # pRe
+  bounds::PlasticityBounds
+  function PlasticityInhibitory(τ,η,n_post,n_pre;
+      r_target=5.0,
+      plasticity_bounds::PlasticityBounds=PlasticityBoundsNonnegative())
+    α = 2*r_target*τ
+    o = Trace(τ,n_post,ForPlasticity())    
+    r = Trace(τ,n_pre,ForPlasticity())    
+    new(τ,η,α,o,r,plasticity_bounds)
+  end
+end
+function reset!(pl::PlasticityInhibitory)
+  reset!.((pl.o,pl.r))
+  return nothing
+end
+
+function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+    ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
+    plast::PlasticityInhibitory)
+  if iszero(k_pre_spike) && iszero(k_post_spike)
+    return nothing
+  end
+  weights = conn.weights
+  # update all pre and post traces to t_now
+  propagate!.(t_spike,(plast.o,plast.r))
+  # spike update, pre or post
+  if !iszero(k_post_spike)
+    update_now!(plast.o,k_post_spike)
+  end
+  if !iszero(k_pre_spike)
+    update_now!(plast.r,k_pre_spike)
+  end
+  if !iszero(k_pre_spike)
+    # k is presynaptic: move vertically along k_pre column 
+    for i_post in 1:npost
+      wik = weights[i_post,k_pre_spike]
+      if !iszero(wik)
+        Δw = plast.η*(plast.o[i_post]-plast.α)
+        weights[i_post,k_pre_spike] = plast.bounds(wik,Δw)
+      end
+    end
+  end
+  if !iszero(k_post_spike)
+    # k is presynaptic: move vertically along k_pre column 
+    for j_pre in 1:npre
+      wkj = weights[k_post_spike,j_pre]
+      if !iszero(wkj)
+        Δw = plast.η*plast.r[j_pre]
+        weights[k_post_spike,j_pre] = plast.bounds(wkj,Δw)
+      end
+    end
+  end
+  return nothing
+end
+        
