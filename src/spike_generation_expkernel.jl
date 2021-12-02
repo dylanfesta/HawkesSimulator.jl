@@ -6,7 +6,10 @@
 
 # the taus are in the trace, now. No unittype or kernel object
 # this is pretty much a wrapper around neural traces
-struct PopulationStateExpKernel{N}  <: AbstractPopulationState
+
+abstract type PopulationStateMarkovian <: AbstractPopulationState end
+
+struct PopulationStateExpKernel{N}  <: PopulationStateMarkovian
   label::Symbol
   n::Int64
   traces::NTuple{N,Trace}
@@ -25,9 +28,49 @@ function reset!(ps::PopulationStateExpKernel)
   return nothing
 end
 
+struct PopulationStateExpKernelInhibitory{N}  <: PopulationStateMarkovian
+  label::Symbol
+  n::Int64
+  traces::NTuple{N,Trace}
+end
+nneurons(ps::PopulationStateExpKernelInhibitory) = ps.n
+function PopulationStateExpKernelInhibitory(n::Int64,traces...;
+    label::Union{String,Nothing}=nothing)
+  label = something(label,rand_label()) 
+  PopulationStateExpKernelInhibitory(label,n,traces)
+end
+function reset!(ps::PopulationStateExpKernelInhibitory)
+  for tra in ps.traces
+    reset!(tra)
+  end
+  return nothing
+end
+
+# global inhibition as a population state
+struct PopulationStateGlobalStabilization
+  label::Symbol
+  Aglo::Float64
+  Aloc::Float64
+  tra_glo::Trace
+  tra_loc::Trace
+  function PopulationStateGlobalStabilization(n_post::Integer,
+      τglo::Real,τloc::Real,
+      Aglo::Real,Aloc::Real,
+      label::Union{String,Nothing}=nothing)
+    label = something(label,rand_label()) 
+    tra_glo = Trace(τglo,1)
+    tra_loc = Trace(τloc,n_post)
+    return PopulationStateGlobalStabilization(label,Aglo,Aloc,tra_glo,tra_loc)
+  end
+end
+
+function reset!(ps::PopulationStateGlobalStabilization)
+  reset!((ps.tra_glo,ps.tra_loc))
+end
+
 struct PopulationExpKernel{N,PS<:PopulationStateExpKernel,
     TC<:NTuple{N,Connection},
-    TP<:NTuple{N,PopulationStateExpKernel},
+    TP<:NTuple{N,PopulationStateMarkovian},
     NL<:AbstractNonlinearity} <: AbstractPopulation
   state::PS
   connections::TC
@@ -124,16 +167,67 @@ function burn_spike!(t_spike::Real,ps::PopulationStateExpKernel,idx_update::Inte
   return nothing
 end
 
+
+# trick to update the global plasticity
+function plasticity_update!(t_spike::Real,label_spike::Symbol,
+    neufire::Integer,ps_post::PopulationStateMarkovian,
+    ::Connection,ps_pre::PopulationStateGlobalStabilization,
+    ::PlasticityRule)
+  k_post,_ = find_which_spiked(label_spike,neufire,ps_post,ps_pre)
+  if k_post == 0
+    return nothing
+  end
+  # move traces to t_spike
+  propagate!(t_spike,ps_pre.tra_loc)
+  propagate!(t_spike,ps_pre.tra_glo)
+  # add 1 to traces
+  update_now!(ps_pre.tra_loc,k_post)
+  update_now!(ps_pre.tra_glo,1)
+  return nothing
+end
+# TO DO : create dummy connection , dummy plasticity rule, test stabilization
+
+
+@inline function propagated_signal(t_now::Real,idx_post::Integer,
+    ::PopulationStateMarkovian,conn::Connection,::PopulationStateExpKernel)
+  tra_tnow = trace_proposal!(t_now,conn)
+  wij_all = view(conn.weights,idx_post,:)
+  return dot(wij_all,tra_tnow)
+end
+
+# if inhibitory, same as above ,but all weights are considered negative
+@inline function propagated_signal(t_now::Real,idx_post::Integer,
+    ::PopulationStateMarkovian,conn::Connection,::PopulationStateExpKernelInhibitory)
+  tra_tnow = trace_proposal!(t_now,conn)
+  wij_all = view(conn.weights,idx_post,:)
+  return -dot(wij_all,tra_tnow)
+end
+
+function trace_proposals(t_now::Real,idx_neu::Integer,
+    ps::PopulationStateGlobalStabilization)
+  Δt = t_now - ps.tra_loc.t_last[]
+  glo = ps.tra_glo[idx_neu] *  exp(-Δt/ps.tra_glo.τ)
+  loc = ps.tra_loc.val[1] * exp(-Δt/ps.tra_loc.τ)
+  return glo,loc
+end
+
+@inline function propagated_signal(t_now::Real,idx_post::Integer,
+    ::PopulationState,conn::Connection,ps_pre::PopulationStateGlobalStabilization)
+  tra_glo,tra_loc = trace_proposals(t_now,idx_post,ps_pre)
+  return  -(ps_pre.Aglo*tra_glo + ps_pre.Aloc*tra_loc)
+end
+
+
 function compute_rate(t_now::Real,external_input::Real,
     pop::PopulationExpKernel, idxneu::Integer)
   ret = external_input
-  for conn in pop.connections
-    tra_tnow = trace_proposal!(t_now,conn)
-    wij_all = view(conn.weights,idxneu,:)
-    ret += dot(wij_all,tra_tnow)
+  ps_post = pop.state
+  for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
+    ret += propagated_signal(t_now,idxneu,ps_post,conn,ps_pre)
   end
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
+
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
 function compute_next_spike(t_now::Real,pop::PopulationExpKernel,ineu::Integer;Tmax::Real=100.0)
