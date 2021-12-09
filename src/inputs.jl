@@ -6,15 +6,13 @@
 # I need to abstract the type, because there is a variant to test weights
 abstract type AbstractPopulationInput <: AbstractPopulation end
 
-
 struct PopulationInput{PS<:PopulationState} <: AbstractPopulationInput
   state::PS
   spike_proposals::Vector{Float64} # memory allocation 
   function PopulationInput(ps::PS) where PS<:PopulationState
-    new{PS}(ps,fill(0.0,nneurons(ps)))
+    new{PS}(ps,fill(+Inf,nneurons(ps)))
   end
 end
-
 
 abstract type SpikeGenerator end
 struct InputUnit{SG<:SpikeGenerator} <: UnitType
@@ -47,7 +45,7 @@ function PopulationInputTestWeights(state::PopulationState,
     (conn_pre::Tuple{C,PS} where {C<:Connection,PS<:PopulationState})...)
   connections = Tuple(getindex.(conn_pre,1))
   pre_states = Tuple(getindex.(conn_pre,2))
-  spike_proposals = fill(-Inf,nneurons(state))
+  spike_proposals = fill(+Inf,nneurons(state))
   return PopulationInputTestWeights(state,connections,pre_states,spike_proposals) 
 end
 # one population only!

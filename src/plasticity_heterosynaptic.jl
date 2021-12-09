@@ -82,8 +82,6 @@ function reset!(plast::PlasticityHeterosynapticApprox)
   return nothing
 end
 
-
-
 function plasticity_update!(t_spike::Real,::Integer,::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
     plast::PlasticityHeterosynapticApprox)
@@ -103,6 +101,22 @@ function plasticity_update!(t_spike::Real,::Integer,::Integer,
       plast.alloc_incoming,plast.alloc_outgoing,
       conn.weights,
       plast.constraint,plast.method,plast.target)
+  return nothing
+end
+
+# applies plasticity several time, to initialize the weight matrix connerctly
+function plasticity_init_weights!(weights::Matrix,plast::PlasticityHeterosynapticApprox ; repeats::Integer=5)
+  for _ in 1:repeats
+    _het_plasticity_fix_incoming!(plast.alloc_incoming,plast.Nel_incoming,
+      weights,plast.constraint,plast.method,plast.target)
+    _het_plasticity_fix_outgoing!(plast.alloc_outgoing,plast.Nel_outgoing,
+      weights,plast.constraint,plast.method,plast.target)
+    # apply the fix  
+    _het_plasticity_apply_fix!( 
+        plast.alloc_incoming,plast.alloc_outgoing,
+        weights,
+        plast.constraint,plast.method,plast.target)
+  end
   return nothing
 end
 
