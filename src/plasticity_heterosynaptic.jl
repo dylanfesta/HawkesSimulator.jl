@@ -67,7 +67,7 @@ struct PlasticityHeterosynapticApprox{
     alloc_outgoing = fill(0.0,1,Npre) # row!
     alloc_Noutgoing = fill(0,Npre)
     return new{HC,HM,HT}(hc,hm,ht,
-      Δt_update,_tcounter,Nel_rows,Nel_cols,
+      Δt_update,_tcounter,
       alloc_incoming,alloc_Nincoming,alloc_outgoing,alloc_Noutgoing)
   end
 end
