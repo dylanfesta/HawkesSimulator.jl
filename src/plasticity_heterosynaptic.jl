@@ -53,7 +53,7 @@ struct PlasticityHeterosynapticApprox{
   alloc_incoming::Vector{Float64} # preallocate, for sums
   alloc_Nincoming::Vector{Int64}  # and count synapses too
   alloc_outgoing::Matrix{Float64}
-  alloc_Noutgoing::Matrix{Int64}
+  alloc_Noutgoing::Vector{Int64}
   function PlasticityHeterosynapticApprox(
       Npost::Int64,Npre::Int64,
       Δt_update::Float64,
@@ -92,9 +92,9 @@ function plasticity_update!(t_spike::Real,::Integer,::Integer,
   # reset timer
   plast._tcounter[] = t_spike
   # find correction values at col/row , depending on target
-  _het_plasticity_fix_incoming!(plast.alloc_incoming,plast.Nel_incoming,
+  _het_plasticity_fix_incoming!(plast.alloc_incoming,plast.alloc_Nincoming,
     conn.weights,plast.constraint,plast.method,plast.target)
-  _het_plasticity_fix_outgoing!(plast.alloc_outgoing,plast.Nel_outgoing,
+  _het_plasticity_fix_outgoing!(plast.alloc_outgoing,plast.alloc_Noutgoing,
     conn.weights,plast.constraint,plast.method,plast.target)
   # apply the fix  
   _het_plasticity_apply_fix!( 
@@ -107,9 +107,9 @@ end
 # applies plasticity several time, to initialize the weight matrix connerctly
 function plasticity_init_weights!(weights::Matrix,plast::PlasticityHeterosynapticApprox ; repeats::Integer=5)
   for _ in 1:repeats
-    _het_plasticity_fix_incoming!(plast.alloc_incoming,plast.Nel_incoming,
+    _het_plasticity_fix_incoming!(plast.alloc_incoming,plast.alloc_Nincoming,
       weights,plast.constraint,plast.method,plast.target)
-    _het_plasticity_fix_outgoing!(plast.alloc_outgoing,plast.Nel_outgoing,
+    _het_plasticity_fix_outgoing!(plast.alloc_outgoing,plast.alloc_Noutgoing,
       weights,plast.constraint,plast.method,plast.target)
     # apply the fix  
     _het_plasticity_apply_fix!( 
@@ -126,7 +126,7 @@ function _het_plasticity_fix_incoming!(alloc_sum::Vector{Float64},Nel::Vector{In
     constraint::HetStrictSum,
     ::HetAdditive,::Union{HetBoth,HetIncoming})
   sum!(alloc_sum,weights)
-  for (k,row) in eachrow(weights)
+  for (k,row) in enumerate(eachrow(weights))
     Nel[k]=count(!=(0.0),row)
   end
   sum_max = constraint.wsum_max
@@ -138,16 +138,18 @@ function _het_plasticity_fix_incoming!(::Vector{Float64},::Vector{Int64},
     ::HeterosynapticMethod,::HetOutgoing)
   return nothing
 end
-function _het_plasticity_fix_outgoing!(alloc_sum::Matrix{Float64},nel::Vector{Int64},
+function _het_plasticity_fix_outgoing!(alloc_sum::Matrix{Float64},Nel::Vector{Int64},
     weights::Matrix,
     constraint::HetStrictSum,
     ::HetAdditive,::Union{HetBoth,HetOutgoing})
   sum!(alloc_sum,weights)
-  for (k,col) in eachcol(weights)
+  for (k,col) in enumerate(eachcol(weights))
     Nel[k]=count(!=(0.0),col)
   end
   sum_max = constraint.wsum_max
-  @. alloc_sum = (sum_max - alloc_sum )/ Nel
+  @simd for i in eachindex(alloc_sum)
+    alloc_sum[i] = (sum_max - alloc_sum[i] )/ Nel[i]
+  end
   return nothing
 end
 function _het_plasticity_fix_outgoing!(::Vector{Float64},::Vector{Int64},
@@ -167,11 +169,11 @@ end
 end
 
 function _het_plasticity_apply_fix!( 
-    fixrows::Vector{Float64},fixcols::Vector{Float64},
+    fixrows::Vector{Float64},fixcols::Matrix{Float64},
     weights::Matrix{Float64},constraint::HeterosynapticConstraint,
     ::HetAdditive,::HetBoth)
   @inbounds for ij in CartesianIndices(weights)
-    wij = weights[ik]
+    wij = weights[ij]
     if iszero(wij) # skip missing connections
       continue
     end

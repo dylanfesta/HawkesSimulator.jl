@@ -272,5 +272,23 @@ end
   @test all(isapprox.(rates_analytic,rates_ntw2;rtol=0.2))
 end
 
+@testset "Heterosynaptic plasticity initialization" begin
+  n = 523
+  theweights = rand(n,n)
+  theweights[diagind(theweights)] .= 0.0
+  # heterosynaptic plasticity
+  Δt_het = 1929.0
+  wmax = 1.0
+  wmin = 0.03
+  wsum_max =  19.0
+  het_tol = 0.01
+  het_constr = H.HetStrictSum(wsum_max,wmin,wmax,het_tol)
+  het_met = H.HetAdditive()
+  het_targ = H.HetBoth()
+  het_plast = H.PlasticityHeterosynapticApprox(n,n,Δt_het,het_constr,het_met,het_targ)
+  H.plasticity_init_weights!(theweights,het_plast;repeats=100)
+  @test all( isapprox.(sum(theweights;dims=1),wsum_max;atol=3*het_tol))
+  @test all( isapprox.(sum(theweights;dims=2),wsum_max;atol=3*het_tol))
+end
 
 ##
