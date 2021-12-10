@@ -208,3 +208,32 @@ function numerical_rates(rec::RecFullTrain,Nneus::Integer,Tend::Real,
   trains = get_trains(rec,Nneus,pop_idx)  
   return numerical_rate.(trains;Tstart=Tstart,Tend=Tend)
 end
+
+function binned_spikecount(trains::Vector{Vector{R}},dt::Float64,Tend::Real;
+      neurons_idx::AbstractArray=Int64[],
+      Tstart::Float64=0.0)
+  if !isempty(neurons_idx)
+    trains = trains[neurons_idx]
+  end
+  Nneus = length(trains)
+  tbins = Tstart:dt:Tend
+  ntimes = length(tbins)-1
+  binnedcount = fill(0,(Nneus,ntimes))
+  for (neu,train) in enumerate(trans)
+    for t in train
+      if (tbins[1] < t <= tbins[end]) # just in case
+        tidx = searchsortedfirst(tbins,t)-1
+        binnedcount[neu,tidx]+=1
+      end
+    end
+  end
+  binsc=midpoints(tbins)
+  return binsc,binnedcount
+end
+
+function instantaneous_rates(trains::Vector{Vector{R}},dt::Float64,Tend::Real;
+    neurons_idx::AbstractArray=Int64[],
+    Tstart::Float64=0.0)
+  binsc,counts = binned_spikecount(trains,dt,Tend;neurons_idx=neurons_idx,Tstart=Tstart)  
+  return binsc, (counts./dt)
+end
