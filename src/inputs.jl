@@ -73,7 +73,7 @@ struct SGTrains <: SpikeGenerator
 end
 @inline function compute_next_spike(t_now::Float64,sg::SGTrains,idxneu::Integer)
   train = sg.trains[idxneu]
-  t_now_plus = t_now+eps(1000.0) # add a small epsilon to move to next element
+  t_now_plus = t_now+eps(10*t_now) # add an increment to move to next element
   idx = searchsortedfirst(train,t_now_plus)
   if idx > length(train)
     return Inf
