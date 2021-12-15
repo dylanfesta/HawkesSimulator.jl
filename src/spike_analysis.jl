@@ -210,8 +210,8 @@ function numerical_rates(rec::RecFullTrain,Nneus::Integer,Tend::Real,
 end
 
 function binned_spikecount(trains::Vector{Vector{R}},dt::Float64,Tend::Real;
-      neurons_idx::AbstractArray=Int64[],
-      Tstart::Float64=0.0)
+      neurons_idx::AbstractVector=Int64[],
+      Tstart::Float64=0.0) where R
   if !isempty(neurons_idx)
     trains = trains[neurons_idx]
   end
@@ -219,7 +219,7 @@ function binned_spikecount(trains::Vector{Vector{R}},dt::Float64,Tend::Real;
   tbins = Tstart:dt:Tend
   ntimes = length(tbins)-1
   binnedcount = fill(0,(Nneus,ntimes))
-  for (neu,train) in enumerate(trans)
+  for (neu,train) in enumerate(trains)
     for t in train
       if (tbins[1] < t <= tbins[end]) # just in case
         tidx = searchsortedfirst(tbins,t)-1
@@ -231,9 +231,9 @@ function binned_spikecount(trains::Vector{Vector{R}},dt::Float64,Tend::Real;
   return binsc,binnedcount
 end
 
-function instantaneous_rates(trains::Vector{Vector{R}},dt::Float64,Tend::Real;
+function instantaneous_rates(trains::Vector{Vector{R}},dt::R,Tend::Real;
     neurons_idx::AbstractArray=Int64[],
-    Tstart::Float64=0.0)
+    Tstart::Float64=0.0) where R
   binsc,counts = binned_spikecount(trains,dt,Tend;neurons_idx=neurons_idx,Tstart=Tstart)  
   return binsc, (counts./dt)
 end

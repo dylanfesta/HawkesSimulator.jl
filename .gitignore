@@ -1,6 +1,7 @@
 *.jl.*.cov
 *.jl.cov
 *.jl.mem
+*.gif
 
 */Manifest.toml
 Manifest.toml
