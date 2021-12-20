@@ -10,10 +10,10 @@ struct PopulationStateMixedExp{N}  <: PopulationStateMarkovian
 end
 nneurons(ps::PopulationStateMixedExp) = ps.n
 
-function PopulationStateMixedExp(n::Integer,forced_trains,traces...;
+function PopulationStateMixedExp(forced_trains::Vector{Vector{Float64}},traces...;
     label::Union{String,Nothing}=nothing)
-  @assert length(forced_trains) == n  "Trains not set correctly!"  
   label = something(label,rand_label()) 
+  n = length(forced_trains)
   PopulationStateMixedExp(label,n,traces,forced_trains)
 end
 function reset!(ps::PopulationStateMixedExp)

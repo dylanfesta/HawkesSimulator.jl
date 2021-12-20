@@ -308,7 +308,7 @@ end
 
   trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
 
-  popstate = H.PopulationStateMixedExp(nneus,trains,trace_ker)
+  popstate = H.PopulationStateMixedExp(trains,trace_ker)
   connection = H.ConnectionExpKernel(noweights,trace_ker)
   population = H.PopulationMixedExp(popstate,connection,noinputs)
 
@@ -335,9 +335,7 @@ end
 
   someweights = [  0 0 0 ; 0.5 0 0 ; 1.0 0 0.0]
   copy!(connection.weights,someweights)
-  # popstate = H.PopulationStateMixedExp(nneus,trains,trace_ker)
-  # connection = H.ConnectionExpKernel(someweights,trace_ker)
-  # population = H.PopulationMixedExp(popstate,connection,noinputs)
+
   n_spikes = round(Integer,(1+1.5+2)rates_start*Tend*0.9)
   recorder = H.RecFullTrain(n_spikes,1)
   network = H.RecurrentNetworkExpKernel(population,recorder)
