@@ -256,6 +256,7 @@ include("spike_generation_hawkes.jl")
 include("kernels.jl")
 # special case optimized for exponential kernels
 include("spike_generation_expkernel.jl")
+include("spike_generation_mixexp.jl")
 # apply_nonlinearity defined here
 include("nonlinearities.jl")
 # input-neurons 

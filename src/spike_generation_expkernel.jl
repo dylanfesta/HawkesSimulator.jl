@@ -128,9 +128,7 @@ end
 # one population constructor
 function RecurrentNetworkExpKernel(pop::AbstractPopulation,recorders...)
   if isempty(recorders)
-    #recorders=NTuple{0,RecNothing}()
     recorders=(RecNothing(),)
-    #@show typeof(recorders)
   end
   return RecurrentNetworkExpKernel((pop,),recorders)
 end
@@ -158,7 +156,7 @@ end
   return length(ntw.populations)
 end
 
-function burn_spike!(t_spike::Real,ps::PopulationStateExpKernel,idx_update::Integer)
+function burn_spike!(t_spike::Real,ps::PopulationStateMarkovian,idx_update::Integer)
   # take care of traces  
   for tra in ps.traces
     propagate_for_dynamics!(t_spike,tra) # update full trace to t_spike 
@@ -185,11 +183,9 @@ function plasticity_update!(t_spike::Real,label_spike::Symbol,
   update_now!(ps_pre.tra_glo,1)
   return nothing
 end
-# TO DO : create dummy connection , dummy plasticity rule, test stabilization
-
 
 @inline function propagated_signal(t_now::Real,idx_post::Integer,
-    ::PopulationStateMarkovian,conn::Connection,::PopulationStateExpKernel)
+    ::PopulationStateMarkovian,conn::Connection,::PopulationStateMarkovian)
   tra_tnow = trace_proposal!(t_now,conn)
   wij_all = view(conn.weights,idx_post,:)
   return dot(wij_all,tra_tnow)

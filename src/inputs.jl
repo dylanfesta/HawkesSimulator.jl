@@ -66,6 +66,21 @@ end
   return t_now+Δt
 end
 
+# this is here mostly for testing
+function make_poisson_samples(rate::R,t_tot::R) where R
+  ret = Vector{R}(undef,round(Integer,1.3*rate*t_tot+10)) # preallocate
+  t_curr = zero(R)
+  k_curr = 1
+  while t_curr <= t_tot
+    Δt = -log(rand())/rate
+    t_curr += Δt
+    ret[k_curr] = t_curr
+    k_curr += 1
+  end
+  return keepat!(ret,1:k_curr-2)
+end
+
+
 ##############
 # Spiketrains set externally 
 struct SGTrains <: SpikeGenerator

@@ -28,21 +28,27 @@ end
 
 ##
 
-nneus = 2
-tauker = 0.5
-trace_ker = H.Trace(tauker,nneus)
-trace_boh = H.Trace(123.0,nneus)
+nneus = 3
+tauker = 1.5
+rates_start = 50.0
+Tend = 60.0
 
-popstate = H.PopulationStateExpKernel(nneus,trace_ker,trace_boh)
-myweights = [0.31 -0.3
-            0.9  -0.15]
-myinputs = [5.0 , 5.0]
-rates_analytic  = inv(I-myweights)*myinputs
+noweights = zeros(nneus,nneus)
+noinputs = zeros(nneus)
 
-connection = H.ConnectionExpKernel(myweights,trace_ker)
-population = H.PopulationExpKernel(popstate,connection,myinputs)
+## generate trains
+trains = [ H.make_poisson_samples(rates_start,Tend) for _ in 1:nneus]
 
-n_spikes = 10_000
+## Build the population 
+
+trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
+
+
+popstate = H.PopulationStateMixedExp(nneus,trains,trace_ker)
+connection = H.ConnectionExpKernel(noweights,trace_ker)
+population = H.PopulationMixedExp(popstate,connection,noinputs)
+
+n_spikes = round(Integer,rates_start*Tend*0.9*nneus)
 recorder = H.RecFullTrain(n_spikes,1)
 network = H.RecurrentNetworkExpKernel(population,recorder)
 
@@ -56,59 +62,36 @@ function simulate!(network,num_spikes)
 end
 
 Tmax = simulate!(network,n_spikes)
-rates = H.numerical_rates(recorder,nneus,Tmax)
+
+trains_out = H.get_trains(recorder,nneus)
+
+@test all( trains[1][1:length(trains_out[1])] .== trains_out[1])
+@test all( trains[2][1:length(trains_out[2])] .== trains_out[2])
+@test all( trains[3][1:length(trains_out[3])] .== trains_out[3])
 
 ##
-error("shtop!")
+
+
+someweights = [  0 0 0 ; 0.5 0 0 ; 1.0 0 0.0]
+
+popstate = H.PopulationStateMixedExp(nneus,trains,trace_ker)
+connection = H.ConnectionExpKernel(someweights,trace_ker)
+population = H.PopulationMixedExp(popstate,connection,noinputs)
+
+n_spikes = round(Integer,(1+1.5+2)rates_start*Tend*0.9)
+recorder = H.RecFullTrain(n_spikes,1)
+network = H.RecurrentNetworkExpKernel(population,recorder)
+
+Tmax = simulate!(network,n_spikes)
+
+trains_out2 = H.get_trains(recorder,nneus)
+
+therates = H.numerical_rates(recorder,nneus,Tmax)
+
+@test all( trains[1][1:length(trains_out2[1])] .== trains_out2[1])
+@test isapprox(therates[2],1.5*rates_start;rtol=0.2)
+@test isapprox(therates[3],2*rates_start;rtol=0.2)
+
 
 ##
-
-##
-
-function generate_poisson_train(rate::R,Tend::R;Tstart=0.0) where R
-  # preallocate for efficiency (even if it's already super fast)
-  nmax = round(Integer,rate*Tend*1.5) 
-  ret = Vector{Float64}(undef,nmax)
-  k = 0
-  t_spike_now = 0.0
-  while t_spike_now <= Tend
-    k+=1
-    t_spike_now += -log(rand())/rate # add delta t
-    ret[k] = t_spike_now
-  end
-  deleteat!(ret,k+1:nmax) # remove unnecessary elements
-  if !iszero(Tstart)
-    ret .+= Tstart # shift by start time, if needed
-  end
-  return ret
-end
-
-function generate_perturbed_train1(rate::R,dissimilarity::R,
-    reference_train::Vector{R}) where R
-  @assert 0.0 <= dissimilarity <= 1.0
-  new_train = copy(reference_train)
-  nspikes = length(reference_train)
-  nchange = round(Integer,dissimilarity*nspikes) # how many spikes to remove?
-  if iszero(nchange)
-    return new_train
-  end
-  # select spikes to delete, and delete them
-  idx_change = sample(1:nspikes,nchange;replace=false,ordered=true)
-  deleteat!(new_train,idx_change)
-  rate_add = rate*dissimilarity
-  Tend = nspikes/rate
-  # add replacement spikes
-  new_spikes = generate_poisson_train(rate_add,Tend)
-  new_train = sort!(vcat(new_train,new_spikes))
-  return new_train
-end
-
-function quickrate(train::Vector{R},Tend::R) where R
-  k = findfirst(>=(Tend),train)
-  if isnothing(k)
-    error("please set Tend correctly!")
-  end
-  return (k-1)/Tend
-end
-
-##
+#error("shtop!")
