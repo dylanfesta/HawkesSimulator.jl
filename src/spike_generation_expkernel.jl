@@ -121,7 +121,7 @@ end
 
 abstract type Recorder end
 
-struct RecurrentNetworkExpKernel{N,TP<:NTuple{N,AbstractPopulation},TR<:NTuple{N,Recorder}}
+struct RecurrentNetworkExpKernel{N,TP<:NTuple{N,AbstractPopulation},NR,TR<:NTuple{NR,Recorder}}
   populations::TP
   recorders::TR
 end
@@ -301,6 +301,7 @@ function record_stuff!(rec::RecFullTrain,tfire::Real,
   rec.k_rec[popfire] = k
   return nothing
 end
+
 
 
 # Record weights
