@@ -114,6 +114,12 @@ function ConnectionExpKernel(weights::Matrix{Float64},pre_trace::Trace,
   tra_prop = Vector{Float64}(undef,npre)
   return ConnectionExpKernel(weights,pre_trace,tra_prop,plasticity_rules)
 end
+function reset!(conn::ConnectionExpKernel)
+  reset!(conn.pre_trace)
+  fill!(conn.trace_proposal,NaN)
+  reset!.(conn.plasticities)
+  return nothing
+end
 
 @inline function trace_proposal!(t_now::Real,conn::ConnectionExpKernel)
   return trace_proposal!(conn.trace_proposal,t_now,conn.pre_trace)
