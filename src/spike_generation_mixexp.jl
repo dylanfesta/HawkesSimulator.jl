@@ -1,7 +1,6 @@
 # Mixed model neurons. In part they produce a spike train **fully determined beforehand** in part they can interact (thus producing additional spikes)
 
 
-
 struct PopulationStateMixedExp{N}  <: PopulationStateMarkovian
   label::Symbol
   n::Int64
@@ -23,8 +22,15 @@ function reset!(ps::PopulationStateMixedExp)
   return nothing
 end
 
-@inline function get_next_forced_spike(t_now,ps::PopulationStateMixedExp,idx_neu)
+@inline function get_next_forced_spike(t_now,ps::PopulationStateMixedExp,idx_neu::Integer)
   return get_next_spike(t_now,ps.forced_trains[idx_neu])
+end
+
+@inline function get_next_forced_spike!(t_alloc::Vector{Float64},t_now,ps::PopulationStateMixedExp)
+  for i in eachindex(t_alloc)
+    t_alloc[i] = get_next_spike(t_now,ps.forced_trains[i])
+  end
+  return findmin(t_alloc)
 end
 
 # same as compute_next_spike in src/inputs.jl
@@ -74,24 +80,42 @@ function compute_rate(t_now::Real,external_input::Real,
   end
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
+function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationMixedExp)
+  inputs = pop.input
+  for i in eachindex(r_alloc)
+    r_alloc[i] = compute_rate(t_now,inputs[i],pop,i)
+  end
+  return nothing
+end
 
-# Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
-function compute_next_spike(t_now::Real,pop::PopulationMixedExp,ineu::Integer;Tmax::Real=100.0)
+# Multivariate thinning algorithf(Y. Chen, 2016) plus forced spiketimes
+function compute_next_spike(t_now::Real,pop::PopulationMixedExp;Tmax::Real=100.0)
   t_start = t_now
-  t = t_now 
+  t = t_now
+  n = nneurons(pop)
   # compute forced value here
-  t_forced = get_next_forced_spike(t_now,pop.state,ineu)
-  ext_inp = pop.input[ineu]
-  freq(t) = compute_rate(t,ext_inp,pop,ineu)
+  nneu = nneurons(pop)
+  t_alloc = Vector{Float64}(undef,nneu)
+  (t_forced,k_forced) = get_next_forced_spike!(t_alloc,t_now,pop.state)
+  rates = pop.spike_proposals # recycle & reuse  # Vector{Float64}(undef,n)
+  dorates!(t) = compute_rates!(rates,t,pop)
   while (t-t_start)<Tmax 
-    (M::Float64) = freq(t)
+    dorates!(t)
+    M = sum(rates)
     Δt =  -log(rand())/M # rand(Exponential())/M
     t = t+Δt
-    u = rand()*M # random between 0 and M
-    (u_up::Float64) = freq(t) 
-    if (u <= u_up) || t > t_forced
-      break # and return t
+    if t >= t_forced # if in the future, return forced spike instead
+      return (t_forced,k_forced)
+    else
+      u = rand()*M # random between 0 and M
+      dorates!(t)
+      cumsum!(rates,rates)
+      k = searchsortedfirst(rates,u)
+      if k <= n
+        return (t,k)
+      end
     end
   end
-  return min(t,t_forced)
+  @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test?)"
+  return (Tmax + t_start,1)
 end
