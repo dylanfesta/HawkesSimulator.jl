@@ -144,6 +144,16 @@ function compute_rate(t_now::Real,external_input::Real,
   end
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
+
+function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationHawkes)
+  inputs = pop.input
+  for i in eachindex(r_alloc)
+    r_alloc[i] = compute_rate(t_now,inputs[i],pop,i)
+  end
+  return nothing
+end
+
+
 # same as above, but interaction upperbound (for thinning algorithm)
 function compute_rate_upperbound(t_now::Real,external_input::Real,
     pop::PopulationHawkes, idxneu::Integer)
@@ -161,25 +171,67 @@ function compute_rate_upperbound(t_now::Real,external_input::Real,
   end
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
+function compute_ratesum_upperbound(t_now::Real,pop::PopulationHawkes)
+  neus = 1:nneurons(pop)
+  inputs = pop.input
+  return mapreduce(neu->compute_rate_upperbound(t_now,inputs[neu],pop,neu),+,neus)
+end
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
-function compute_next_spike(t_now::Real,pop::PopulationHawkes,ineu::Integer;Tmax::Real=100.0)
+# function compute_next_spike(t_now::Real,pop::PopulationHawkes,ineu::Integer;Tmax::Real=100.0)
+#   t_start = t_now
+#   t = t_now 
+#   ext_inp = pop.input[ineu]
+#   freq(t) = compute_rate(t,ext_inp,pop,ineu)
+#   freq_up(t) = compute_rate_upperbound(t,ext_inp,pop,ineu)
+#   while (t-t_start)<Tmax # Tmax is upper limit, if rate too low 
+#     (M::Float64) = freq_up(t)
+#     Δt =  -log(rand())/M # rand(Exponential())/M
+#     t = t+Δt
+#     u = rand()*M # random between 0 and M
+#     (u_up::Float64) = freq(t) 
+#     if u <= u_up
+#       return t
+#     end
+#   end
+#   return Tmax + t_start
+# end
+
+
+# Multivariate thinning algorith. From  Y. Chen, 2016
+function compute_next_spike(t_now::Real,pop::PopulationHawkes;Tmax::Real=100.0)
   t_start = t_now
-  t = t_now 
-  ext_inp = pop.input[ineu]
-  freq(t) = compute_rate(t,ext_inp,pop,ineu)
-  freq_up(t) = compute_rate_upperbound(t,ext_inp,pop,ineu)
-  while (t-t_start)<Tmax # Tmax is upper limit, if rate too low 
-    (M::Float64) = freq_up(t)
+  t = t_now
+  n = nneurons(pop)
+  rates = pop.spike_proposals # recycle & reuse  # Vector{Float64}(undef,n)
+  rates_up = similar(rates)
+  dorates!(t) = compute_rates!(rates,t,pop)
+  ratesup(t) = compute_ratesum_upperbound(t,pop)
+  while (t-t_start)<Tmax 
+    M = ratesup(t)
     Δt =  -log(rand())/M # rand(Exponential())/M
     t = t+Δt
     u = rand()*M # random between 0 and M
-    (u_up::Float64) = freq(t) 
-    if u <= u_up
-      return t
+    dorates!(t)
+    cumsum!(rates,rates)
+    k = searchsortedfirst(rates,u)
+    if k <= n
+      return (t,k)
     end
   end
-  return Tmax + t_start
+  @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test?)"
+  return (Tmax + t_start,1)
+end
+
+# for population, just pick the one that happens earlier
+function compute_next_spike(t_now::Real,pop::AbstractPopulation;Tmax::Float64=100.0)
+  nneu = nneurons(pop)
+  for ineu in 1:nneu
+    # update proposed next spike for each postsynaptic neuron
+    pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu;Tmax=Tmax) 
+  end
+  # best candidate and neuron that fired it for one input network
+  return findmin(pop.spike_proposals)  # (neuron_spike,t_spike)
 end
 
 function dynamics_step!(t_now::Real,ntw::RecurrentNetwork)
@@ -188,14 +240,8 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetwork)
   neuron_best = Vector{Int64}(undef,npops)
   # for each postsynaptic network, compute spike proposals 
   for (kn,pop) in enumerate(ntw.populations)
-    # update proposed next spike for each postsynaptic neuron
-    nneu = nneurons(pop)
-    for ineu in 1:nneu
-      pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu) 
-    end
-    # best candidate and neuron that fired it for one input network
-    (proposals_best[kn], neuron_best[kn]) = findmin(pop.spike_proposals) 
-  end 
+    (proposals_best[kn], neuron_best[kn]) = compute_next_spike(t_now,pop)
+  end
   # select next spike (best across all input_networks)
   (tbest,kbest) = findmin(proposals_best)
   # update train for that specific neuron :

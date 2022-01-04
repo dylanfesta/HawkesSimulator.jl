@@ -18,8 +18,8 @@ abstract type SpikeGenerator end
 struct InputUnit{SG<:SpikeGenerator} <: UnitType
   spike_generator::SG
 end
-@inline function compute_next_spike(t_now::Real,pop::AbstractPopulationInput,ineu::Integer)
-  return compute_next_spike(t_now,pop.state.unittype.spike_generator,ineu)
+@inline function compute_next_spike(t_now::Real,pop::AbstractPopulationInput,ineu::Integer;Tmax::Float64=100.0)
+  return compute_next_spike(t_now,pop.state.unittype.spike_generator,ineu;Tmax=Tmax)
 end
 
 # simplified constructor for population object
@@ -61,9 +61,9 @@ end
 struct SGPoisson <: SpikeGenerator
   rates::Vector{Float64}
 end
-@inline function compute_next_spike(t_now::Float64,sg::SGPoisson,idxneu::Integer)
+@inline function compute_next_spike(t_now::Float64,sg::SGPoisson,idxneu::Integer;Tmax::Float64=100.0)
   Δt = -log(rand())/sg.rates[idxneu]
-  return t_now+Δt
+  return t_now + min(Δt,Tmax)
 end
 
 # this is here mostly for testing
@@ -86,14 +86,14 @@ end
 struct SGTrains <: SpikeGenerator
   trains::Vector{Vector{Float64}}
 end
-@inline function compute_next_spike(t_now::Float64,sg::SGTrains,idxneu::Integer)
+@inline function compute_next_spike(t_now::Float64,sg::SGTrains,idxneu::Integer;Tmax::Float64=100.0)
   train = sg.trains[idxneu]
   t_now_plus = t_now+eps(10*t_now) # add an increment to move to next element
   idx = searchsortedfirst(train,t_now_plus)
   if idx > length(train)
     return Inf
   else
-    return train[idx]
+    return min(train[idx],t_now+Tmax)
   end
 end
 
@@ -109,7 +109,7 @@ end
 # pretty much the same as in `spike_generation_hawkes` ...
 function _rand_by_thinning(t_start::Real,idx_neu::Integer,
     get_rate::Function,get_rate_upper::Function;
-    Tmax=50.0,nowarning::Bool=false)
+    Tmax=100.0,nowarning::Bool=false)
   t = t_start 
   while (t-t_start)<Tmax # Tmax is upper limit, if rate too low 
     (rup::Float64) = get_rate_upper(t,idx_neu)
@@ -127,8 +127,8 @@ function _rand_by_thinning(t_start::Real,idx_neu::Integer,
   end
   return Tmax + t_start
 end
-function compute_next_spike(t_now::Float64,sg::SGPoissonFunction,idx_neu::Integer)
-  return _rand_by_thinning(t_now,idx_neu,sg.ratefunction,sg.ratefunction_upper)
+function compute_next_spike(t_now::Float64,sg::SGPoissonFunction,idx_neu::Integer;Tmax::Float64=100.0)
+  return _rand_by_thinning(t_now,idx_neu,sg.ratefunction,sg.ratefunction_upper;Tmax=Tmax)
 end
 
 

@@ -246,10 +246,12 @@ end
   population = H.PopulationExpKernel(popstate,connection,myinputs)
 
   n_spikes = 10_000
-  recorder = H.RecFullTrain(n_spikes,1)
-  network = H.RecurrentNetworkExpKernel(population,recorder)
+  recorder1 = H.RecFullTrain(n_spikes,1)
+  recorder2 = H.RecFullTrain(n_spikes,1)
+  network1 = H.RecurrentNetworkExpKernel(population,recorder1)
+  network2 = H.RecurrentNetworkExpKernel(population,recorder2)
 
-  function simulate!(network,num_spikes)
+  function simulate1!(network,num_spikes)
     t_now = 0.0
     H.reset!(network) # clear spike trains etc
     for _ in 1:num_spikes
@@ -265,9 +267,10 @@ end
     end
     return t_now
   end
-  Tmax = simulate!(network,n_spikes)
-  rates_ntw1 = H.numerical_rates(recorder,nneus,Tmax)
-  rates_ntw2 = H.numerical_rates(recorder,nneus,Tmax)
+  Tmax1 = simulate1!(network1,n_spikes)
+  Tmax2 = simulate2!(network2,n_spikes)
+  rates_ntw1 = H.numerical_rates(recorder1,nneus,Tmax1)
+  rates_ntw2 = H.numerical_rates(recorder2,nneus,Tmax2)
   @test all(isapprox.(rates_analytic,rates_ntw1;rtol=0.2))
   @test all(isapprox.(rates_analytic,rates_ntw2;rtol=0.2))
 end
@@ -349,5 +352,6 @@ end
   @test isapprox(therates[3],2*rates_start;rtol=0.2)
 
 end
+
 
 ##

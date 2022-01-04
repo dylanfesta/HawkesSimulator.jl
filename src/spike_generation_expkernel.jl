@@ -230,27 +230,56 @@ function compute_rate(t_now::Real,external_input::Real,
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
 
+function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
+  inputs = pop.input
+  for i in eachindex(r_alloc)
+    r_alloc[i] = compute_rate(t_now,inputs[i],pop,i)
+  end
+  return nothing
+end
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
-function compute_next_spike(t_now::Real,pop::PopulationExpKernel,ineu::Integer;Tmax::Real=100.0)
+# function compute_next_spike(t_now::Real,pop::PopulationExpKernel,ineu::Integer;Tmax::Real=100.0)
+#   t_start = t_now
+#   t = t_now 
+#   ext_inp = pop.input[ineu]
+#   freq(t) = compute_rate(t,ext_inp,pop,ineu)
+#   while (t-t_start)<Tmax 
+#     (M::Float64) = freq(t)
+#     Δt =  -log(rand())/M # rand(Exponential())/M
+#     t = t+Δt
+#     u = rand()*M # random between 0 and M
+#     (u_up::Float64) = freq(t) 
+#     if u <= u_up
+#       return t
+#     end
+#   end
+#   return Tmax + t_start
+# end
+
+# Multivariate thinning algorith. From  Y. Chen, 2016
+function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.0)
   t_start = t_now
-  t = t_now 
-  ext_inp = pop.input[ineu]
-  freq(t) = compute_rate(t,ext_inp,pop,ineu)
+  t = t_now
+  n = nneurons(pop)
+  rates = pop.spike_proposals # recycle & reuse  # Vector{Float64}(undef,n)
+  dorates!(t) = compute_rates!(rates,t,pop)
   while (t-t_start)<Tmax 
-    (M::Float64) = freq(t)
+    dorates!(t)
+    M = sum(rates)
     Δt =  -log(rand())/M # rand(Exponential())/M
     t = t+Δt
     u = rand()*M # random between 0 and M
-    (u_up::Float64) = freq(t) 
-    if u <= u_up
-      return t
+    dorates!(t)
+    cumsum!(rates,rates)
+    k = searchsortedfirst(rates,u)
+    if k <= n
+      return (t,k)
     end
   end
-  return Tmax + t_start
+  @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test?)"
+  return (Tmax + t_start,1)
 end
-
-
 
 ###
 # recorders methods
@@ -371,13 +400,9 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
   neuron_best = Vector{Int64}(undef,npops)
   # for each postsynaptic network, compute spike proposals 
   for (kn,pop) in enumerate(ntw.populations)
-    # update proposed next spike for each postsynaptic neuron
-    nneu = nneurons(pop)
-    for ineu in 1:nneu
-      pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu) 
-    end
-    # best candidate and neuron that fired it for one input network
-    (proposals_best[kn], neuron_best[kn]) = findmin(pop.spike_proposals) 
+    sbug =   compute_next_spike(t_now,pop)
+    #@show sbug
+    (proposals_best[kn],neuron_best[kn]) = sbug
   end 
   # select next spike (best across all input_networks)
   (tfire,popfire) = findmin(proposals_best)
@@ -408,11 +433,7 @@ function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetworkExpKer
   # update proposed next spike for each postsynaptic neuron
   popfire = 1 
   pop = ntw.populations[1]
-  nneu = nneurons(pop)
-  for ineu in 1:nneu
-    pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu) 
-  end
-  (tfire, neufire) = findmin(pop.spike_proposals) 
+  (tfire,neufire) = compute_next_spike(t_now,pop)
   psfire = pop.state
   label_fire = psfire.label
   # update stuff for that specific neuron/population state :
