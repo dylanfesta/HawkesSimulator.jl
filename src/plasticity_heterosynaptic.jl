@@ -25,11 +25,11 @@ end
   hardbounds(x,hc.wmin,hc.wmax)
 end
 
-function _hetconstraint_vs_sum(sums::Vector{Float64},c::HetUpperLimit)
+function _hetconstraint_vs_sum(sums::Array{Float64},c::HetUpperLimit)
   _lim  =  c.wsum_max + c.tolerance
   return sums .> _lim
 end
-function _hetconstraint_vs_sum(sums::Vector{Float64},c::HetStrictSum)
+function _hetconstraint_vs_sum(sums::Array{Float64},c::HetStrictSum)
   return .!isapprox.(sums,c.wsum_max;atol=c.tolerance)
 end
 
@@ -52,7 +52,7 @@ struct PlasticityHeterosynapticApprox{
   _tcounter::Ref{Float64}
   alloc_incoming::Vector{Float64} # preallocate, for sums
   alloc_Nincoming::Vector{Int64}  # and count synapses too
-  alloc_outgoing::Matrix{Float64}
+  alloc_outgoing::Matrix{Float64} # row vector
   alloc_Noutgoing::Vector{Int64}
   function PlasticityHeterosynapticApprox(
       Npost::Int64,Npre::Int64,
@@ -123,14 +123,16 @@ end
 
 function _het_plasticity_fix_incoming!(alloc_sum::Vector{Float64},Nel::Vector{Int64},
     weights::Matrix{Float64},
-    constraint::HetStrictSum,
+    constraint::Union{HetStrictSum,HetUpperLimit},
     ::HetAdditive,::Union{HetBoth,HetIncoming})
   sum!(alloc_sum,weights)
+  tofix = _hetconstraint_vs_sum(alloc_sum,constraint)
   for (k,row) in enumerate(eachrow(weights))
     Nel[k]=count(!=(0.0),row)
   end
   sum_max = constraint.wsum_max
-  @. alloc_sum = (sum_max - alloc_sum )/ Nel
+  @. alloc_sum = (sum_max - alloc_sum)/Nel
+  alloc_sum[.! tofix] .= 0.0
   return nothing
 end
 function _het_plasticity_fix_incoming!(::Vector{Float64},::Vector{Int64},
@@ -140,15 +142,19 @@ function _het_plasticity_fix_incoming!(::Vector{Float64},::Vector{Int64},
 end
 function _het_plasticity_fix_outgoing!(alloc_sum::Matrix{Float64},Nel::Vector{Int64},
     weights::Matrix,
-    constraint::HetStrictSum,
+    constraint::Union{HetStrictSum,HetUpperLimit},
     ::HetAdditive,::Union{HetBoth,HetOutgoing})
   sum!(alloc_sum,weights)
-  for (k,col) in enumerate(eachcol(weights))
-    Nel[k]=count(!=(0.0),col)
-  end
+  tofix = _hetconstraint_vs_sum(alloc_sum,constraint)
   sum_max = constraint.wsum_max
-  @simd for i in eachindex(alloc_sum)
-    alloc_sum[i] = (sum_max - alloc_sum[i] )/ Nel[i]
+  for (j,dofix) in enumerate(tofix)
+    if dofix
+      _col = view(weights,:,j)
+      _Nel=count(!=(0.0),_col)
+      alloc_sum[j] = (sum_max - alloc_sum[j])/ _Nel
+    else
+      alloc_sum[j] = 0.0
+    end
   end
   return nothing
 end
@@ -178,7 +184,9 @@ function _het_plasticity_apply_fix!(
       continue
     end
     wij += _mean_nonzero(fixrows[ij[1]],fixcols[ij[2]])
-    weights[ij] = hardbounds(wij,constraint)
+    if !iszero(wij)
+      weights[ij] = hardbounds(wij,constraint)
+    end
   end
   return nothing
 end
