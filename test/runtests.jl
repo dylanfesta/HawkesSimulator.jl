@@ -332,10 +332,12 @@ end
 
   trains_out = H.get_trains(recorder,nneus)
 
+  # no interactions, trains are identical to forced spiking
   @test all( trains[1][1:length(trains_out[1])] .== trains_out[1])
   @test all( trains[2][1:length(trains_out[2])] .== trains_out[2])
   @test all( trains[3][1:length(trains_out[3])] .== trains_out[3])
 
+  # now include interactions
   someweights = [  0 0 0 ; 0.5 0 0 ; 1.0 0 0.0]
   copy!(connection.weights,someweights)
 
@@ -347,10 +349,12 @@ end
   trains_out2 = H.get_trains(recorder,nneus)
   therates = H.numerical_rates(recorder,nneus,Tmax)
 
+  # unconnected neuron, only forced spikes
   @test all( trains[1][1:length(trains_out2[1])] .== trains_out2[1])
+  # neuron receiving 0.5 input spikes 1.5 times as much 
   @test isapprox(therates[2],1.5*rates_start;rtol=0.2)
+  # neuron receiving 1.0 input spikes twice as much
   @test isapprox(therates[3],2*rates_start;rtol=0.2)
-
 end
 
 
