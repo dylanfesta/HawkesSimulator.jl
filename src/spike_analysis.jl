@@ -180,6 +180,30 @@ function draw_spike_raster(trains::Vector{Vector{Float64}},
 end
 
 
+# do draw spikes on existing raster plot
+function add_to_spike_raster!(raster::Matrix,
+    trains::Vector{Vector{Float64}},neu_idxs::Vector{Int64},
+    dt::Real,Tend::Real, spike_color::C;
+      Tstart::Real=0.0,
+      spike_size::Integer = 5,
+      spike_separator::Integer = 1,
+      ) where C<:Color
+  @assert length(neu_idxs) == length(trains)    
+  binned_binary  = map(trains) do train
+    .! iszero.(bin_spikes(train,dt,Tend;Tstart=Tstart))
+  end
+  ntimes = length(binned_binary[1])
+  @assert size(raster,2) == ntimes "Mismatch in time binning!"
+  for (neu,binv) in zip(neu_idxs,binned_binary)
+    spk_idx = findall(binv)
+    _idx_pre = (neu-1)*(spike_size+spike_separator)+spike_separator
+    y_color = _idx_pre+1:_idx_pre+spike_size
+    raster[y_color,spk_idx] .= spike_color
+  end
+  return nothing
+end
+
+
 #### this is the part which involves reader objects
 
 function get_spiketimes_spikeneurons(rec::RecFullTrain,
