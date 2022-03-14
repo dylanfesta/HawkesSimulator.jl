@@ -22,6 +22,7 @@ end
 ##########################
 ## covariance density
 
+
 function bin_spikes(Y::Vector{R},dt::R,Tend::R;
     Tstart::R=0.0) where R
   times = range(Tstart,Tend;step=dt)  
@@ -34,6 +35,24 @@ function bin_spikes(Y::Vector{R},dt::R,Tend::R;
   end
   return ret
 end
+
+
+function bin_and_rates(Y::Vector{R},dt::R,Tend::R;Tstart::R=0.0) where R
+  times = range(Tstart,Tend;step=dt)  
+  return midpoints(times),bin_spikes(Y,dt,Tend;Tstart=Tstart) ./ dt
+end
+
+function bin_and_rates(Ys::Vector{Vector{R}},dt::R,Tend::R;Tstart::R=0.0) where R
+  times = range(Tstart,Tend;step=dt)
+  ret = [bin_spikes(Y,dt,Tend;Tstart=Tstart) ./ dt for Y in Ys]
+  return midpoints(times),vcat(transpose.(ret)...)
+end
+
+
+@inline function get_times_strict(dt::R,Tend::R;Tstart::R=0.0) where R<:Real
+  return range(Tstart,Tend-dt;step=dt)
+end
+
 
 # and returns a value in Hz
 function instantaneous_rates(idxs_neu::AbstractVector{<:Integer},
@@ -60,6 +79,81 @@ end
   return (0.0:dt:(T-dt))
 end
 
+
+# the first element (zero lag) is always rate/dτ
+function covariance_self_numerical(Y::Vector{R},dτ::R,τmax::R,
+     Tend::Union{R,Nothing}=nothing) where R
+  τtimes,ret = covariance_density_numerical([Y,],dτ,τmax;verbose=false,Tend=Tend)
+  return  τtimes, ret[:,1,1]
+end
+
+
+function covariance_density_numerical(Ys::Vector{Vector{R}},dτ::Real,τmax::R;
+   Tend::Union{R,Nothing}=nothing,verbose::Bool=false) where R
+  Tend = something(Tend, maximum(last,Ys)- dτ)
+  ndt = round(Integer,τmax/dτ)
+  n = length(Ys)
+  ret = Array{Float64}(undef,ndt,n,n)
+  if verbose
+      @info "The full dynamical iteration has $(round(Integer,Tend/dτ)) bins ! (too many?)"
+  end
+  for i in 1:n
+    binnedi = bin_spikes(Ys[i],dτ,Tend)
+    fmi = length(Ys[i]) / Tend # mean frequency
+    ndt_tot = length(binnedi)
+    _ret_alloc = Vector{R}(undef,ndt)
+    for j in 1:n
+      if verbose 
+        @info "now computing cov for pair $i,$j"
+      end
+      binnedj =  i==j ? binnedi : bin_spikes(Ys[j],dτ,Tend)
+      fmj = length(Ys[j]) / Tend # mean frequency
+      binnedj_sh = similar(binnedj)
+      @inbounds @simd for k in 0:ndt-1
+        circshift!(binnedj_sh,binnedj,k)
+        _ret_alloc[k+1] = dot(binnedi,binnedj_sh)
+      end
+      @. _ret_alloc = (_ret_alloc / (ndt_tot*dτ^2)) - fmi*fmj
+      ret[:,i,j] = _ret_alloc
+    end
+  end
+  return get_times_strict(dτ,τmax), ret
+end
+
+function covariance_density_ij(Ys::Vector{Vector{R}},i::Integer,j::Integer,dτ::R,τmax::R;
+   Tend::Union{R,Nothing}=nothing) where R
+  return covariance_density_ij(Ys[i],Ys[j],dτ,τmax;Tend=Tend)
+end
+
+function covariance_density_ij(X::Vector{R},Y::Vector{R},dτ::Real,τmax::R;
+    Tend::Union{R,Nothing}=nothing) where R
+  times = get_times_strict(dτ,τmax)
+  ndt = length(times)
+  times_ret = vcat(-reverse(times[2:end]),times)
+  Tend = something(Tend, max(X[end],Y[end])- dτ)
+  ret = Vector{Float64}(undef,2*ndt-1)
+  binnedx = bin_spikes(X,dτ,Tend)
+  binnedy = bin_spikes(Y,dτ,Tend)
+  fx = length(X) / Tend # mean frequency
+  fy = length(Y) / Tend # mean frequency
+  ndt_tot = length(binnedx)
+  binned_sh = similar(binnedx)
+  # 0 and forward
+  @simd for k in 0:ndt-1
+    circshift!(binned_sh,binnedy,-k)
+    ret[ndt-1+k+1] = dot(binnedx,binned_sh)
+  end
+  # backward
+  @simd for k in 1:ndt-1
+    circshift!(binned_sh,binnedy,k)
+    ret[ndt-k] = dot(binnedx,binned_sh)
+  end
+  @. ret = (ret / (ndt_tot*dτ^2)) - fx*fy
+  return times_ret, ret
+end
+
+
+
 # frequencies for Fourier transform.
 # from -1/dt to 1/dt - 1/T in steps of 1/T
 function get_frequencies_centerzero(dt::Real,T::Real)
@@ -77,43 +171,7 @@ function get_frequencies(dt::Real,T::Real)
   return ret
 end
 
-function covariance_self_numerical(Y::Vector{R},dτ::R,τmax::R,
-     Tmax::Union{R,Nothing}=nothing) where R
-  ret = covariance_density_numerical([Y,],dτ,τmax,Tmax;verbose=false)
-  return ret[1,1,:]
-end
 
-function covariance_density_numerical(Ys::Vector{Vector{R}},dτ::Real,τmax::R,
-   Tmax::Union{R,Nothing}=nothing ; verbose::Bool=false) where R
-  Tmax = something(Tmax, maximum(x->x[end],Ys)- dτ)
-  ndt = round(Integer,τmax/dτ)
-  n = length(Ys)
-  ret = Array{Float64}(undef,n,n,ndt)
-  if verbose
-      @info "The full dynamical iteration has $(round(Integer,Tmax/dτ)) bins ! (too many?)"
-  end
-  for i in 1:n
-    binnedi = bin_spikes(Ys[i],dτ,Tmax)
-    fmi = length(Ys[i]) / Tmax # mean frequency
-    ndt_tot = length(binnedi)
-    _ret_alloc = Vector{R}(undef,ndt)
-    for j in 1:n
-      if verbose 
-        @info "now computing cov for pair $i,$j"
-      end
-      binnedj =  i==j ? binnedi : bin_spikes(Ys[j],dτ,Tmax)
-      fmj = length(Ys[j]) / Tmax # mean frequency
-      binnedj_sh = similar(binnedj)
-      @inbounds @simd for k in 0:ndt-1
-        circshift!(binnedj_sh,binnedj,k)
-        _ret_alloc[k+1] = dot(binnedi,binnedj_sh)
-      end
-      @. _ret_alloc = _ret_alloc / (ndt_tot*dτ^2) - fmi*fmj
-      ret[i,j,:] = _ret_alloc
-    end
-  end
-  return ret
-end
 
 
 """
@@ -255,9 +313,12 @@ function binned_spikecount(trains::Vector{Vector{R}},dt::Float64,Tend::Real;
   return binsc,binnedcount
 end
 
+
 function instantaneous_rates(trains::Vector{Vector{R}},dt::R,Tend::Real;
     neurons_idx::AbstractArray=Int64[],
     Tstart::Float64=0.0) where R
   binsc,counts = binned_spikecount(trains,dt,Tend;neurons_idx=neurons_idx,Tstart=Tstart)  
   return binsc, (counts./dt)
 end
+
+

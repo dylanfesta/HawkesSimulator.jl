@@ -26,7 +26,7 @@ Random.seed!(0)
 
 using HawkesSimulator; const global H = HawkesSimulator
 
-## # src
+## #src
 # ## Define and visualize the kernel
 
 mytau = 0.5
@@ -97,7 +97,7 @@ rate_analytic = rate_analytic[1] # from 1-dim vector to scalar
 
 @info "Mean rate -  numerical $(round(ratenum;digits=2)), analytic  $(round(rate_analytic;digits=2))"
 
-## # src
+## #src
 #=
 ## Covariance density
 
@@ -108,7 +108,7 @@ mydt = 0.1
 myτmax = 60.0
 mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
-cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
+cov_times,cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
 
 #=
 now compute covariance density analytically (as in Hawkes models), at higher resolution, 
@@ -138,15 +138,13 @@ end
 
 taush,covfou=four_high_res(mydt,myτmax)
 
-plt= let plt = plot(xlabel="time delay (s)",ylabel="Covariance density")
-  plot!(plt,mytaus[2:end], cov_num[2:end] ; linewidth=3, label="numerical" )
+theplot = let plt = plot(xlabel="time delay (s)",ylabel="Covariance density")
+  plot!(plt,cov_times[2:end], cov_num[2:end] ; linewidth=3, label="numerical" )
   plot!(plt,taush[2:end],covfou[2:end]; label="analytic",linewidth=3,linestyle=:dash)
 end;
-
-plot(plt)
+plot(theplot)
 
 # Analytics and numerics match quite well, although not perfectly. Whatever.
 
 # **THE END**
-
-# using Literate ; Literate.markdown("examples/alphadelay.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src
+using Literate ; Literate.markdown("examples/alphadelay.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src

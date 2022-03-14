@@ -206,7 +206,7 @@ mydt = 0.1
 myτmax = 25.0
 mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
-cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
+cov_times,cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
 nothing #hide
 ````
 
@@ -234,7 +234,7 @@ end
 (taush,covfou)=four_high_res(mydt,myτmax)
 
 theplot =  let  plt = plot(xlabel="time delay (s)",ylabel="Covariance density")
-  plot!(plt,mytaus[2:end], cov_num[2:end] ; linewidth=3, label="simulation" )
+  plot!(plt,cov_times[2:end], cov_num[2:end] ; linewidth=3, label="simulation" )
   plot!(plt,taush[2:end],covfou[2:end]; label="analytic",linewidth=3,linestyle=:dash)
   plt
 end;
@@ -292,11 +292,11 @@ mydt = 0.1
 myτmax = 15.0
 mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
-cov_num = H.covariance_density_numerical(myspikes_both,mydt,myτmax)
+cov_times,cov_num = H.covariance_density_numerical(myspikes_both,mydt,myτmax)
 
 theplot = let  plt=plot(xlabel="time delay (s)",ylabel="Covariance density")
   for i in 1:2, j in 1:2
-    plot!(plt,mytaus[2:end-1],cov_num[i,j,2:end-1], linewidth = 3, label="cov $i-$j")
+    plot!(plt,cov_times[2:end-1],cov_num[i,j,2:end-1], linewidth = 3, label="cov $i-$j")
   end
   plt
 end;
@@ -317,25 +317,25 @@ function four_high_res(dt::Real,Tmax::Real)
     ifftshift( w .* H.interaction_kernel_fourier.(myfreq,Ref(p1)))
   end
   D = Diagonal(ratefou)
-  M = Array{ComplexF64}(undef,2,2,length(myfreq))
+  M = Array{ComplexF64}(undef,length(myfreq),2,2)
   Mt = similar(M,Float64)
-  for i in eachindex(myfreq)
-    G = getindex.(G_omega,i)
-    M[:,:,i] = (I-G)\D/(I-G')
+  for k in eachindex(myfreq)
+    G = getindex.(G_omega,k)
+    M[k,:,:] = (I-G)\D/(I-G')
   end
   for i in 1:2,j in 1:2
-    Mt[i,j,:] = real.(ifft(M[i,j,:]))
-    Mt[i,j,2:end] ./= mydt # diagonal of t=0 contains the rate
+    Mt[:,i,j] = real.(ifft(M[:,i,j]))
+    Mt[2:end,i,j] ./= mydt # diagonal of t=0 contains the rate
   end
-  return mytaus[1:nkeep],Mt[:,:,1:nkeep]
+  return mytaus[1:nkeep],Mt[1:nkeep,:,:]
 end
 
 taush,Cfou=four_high_res(mydt,myτmax)
 
 function oneplot(i,j)
   plt=plot(xlabel="time delay (s)",ylabel="Covariance density",title="cov $i - $j")
-  plot!(plt,mytaus[2:end],cov_num[i,j,2:end] ; linewidth = 3, label="simulation")
-  plot!(plt,taush[2:end],Cfou[i,j,2:end]; linestyle=:dash, linewidth=3, label="analytic")
+  plot!(plt,mytaus[2:end],cov_num[2:end,i,j] ; linewidth = 3, label="simulation")
+  plot!(plt,taush[2:end],Cfou[2:end,i,j]; linestyle=:dash, linewidth=3, label="analytic")
 end
 ````
 

@@ -53,10 +53,11 @@ nothing #hide
 Let's plot the activation function
 
 ````@example hawkes_vs_2D_linear
-_ = let vs = range(-90,50.,length=150)
+theplot = let vs = range(-90,50.,length=150)
   rs = @. iofunction(vs,v0,α)
   plot(vs,rs;linewidth=2,leg=false,xlabel="voltage (mV)",ylabel="rate (Hz)",color=:black)
-end
+end;
+plot(theplot)
 ````
 
 I run the rate model by Euler integration, with timesteps of 0.01 ms (the variable `dt`)

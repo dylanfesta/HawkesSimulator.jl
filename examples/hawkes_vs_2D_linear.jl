@@ -45,10 +45,11 @@ const taus_hawk = [3.0,3.0];
 
 # Let's plot the activation function
 
-_ = let vs = range(-90,50.,length=150)
+theplot = let vs = range(-90,50.,length=150)
   rs = @. iofunction(vs,v0,α)
   plot(vs,rs;linewidth=2,leg=false,xlabel="voltage (mV)",ylabel="rate (Hz)",color=:black)
-end
+end;
+plot(theplot)
 
 ## #src
 
@@ -136,4 +137,4 @@ rates_e,rates_i = H.numerical_rates(rec);
 
 # **THE END**
 
-# Literate.markdown("examples/hawkes_vs_2D_linear.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src
+using Literate ; Literate.markdown("examples/hawkes_vs_2D_linear.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src
