@@ -351,6 +351,20 @@ function numerical_rates(rec::RecFullTrain{N}) where N
   return rates
 end
 
+function get_trains(rec::RecFullTrain{N}; 
+    Nneus::Integer = 0,
+    pop_idx::Integer = 1) where N
+  (spkt,spkneu) = rec.timesneurons[pop_idx]
+  if Nneus == 0
+    Nneus = maximum(spkneu)
+  end
+  trains = map(1:Nneus) do neu
+    _idx = findall(==(neu),spkneu)
+    return spkt[_idx]
+  end
+  return trains
+end
+
 # general signature: record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
 
 function record_stuff!(rec::RecFullTrain,tfire::Real,

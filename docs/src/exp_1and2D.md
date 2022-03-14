@@ -296,7 +296,7 @@ cov_times,cov_num = H.covariance_density_numerical(myspikes_both,mydt,myτmax)
 
 theplot = let  plt=plot(xlabel="time delay (s)",ylabel="Covariance density")
   for i in 1:2, j in 1:2
-    plot!(plt,cov_times[2:end-1],cov_num[i,j,2:end-1], linewidth = 3, label="cov $i-$j")
+    plot!(plt,cov_times[2:end-1],cov_num[2:end-1,i,j], linewidth = 3, label="cov $i-$j")
   end
   plt
 end;
