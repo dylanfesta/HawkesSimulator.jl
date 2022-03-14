@@ -16,7 +16,7 @@ struct PopulationStateExpKernel{N}  <: PopulationStateMarkovian
 end
 nneurons(ps::PopulationStateExpKernel) = ps.n
 
-function PopulationStateExpKernel(n::Int64,traces...;
+function PopulationStateExpKernel(n::Int64,(traces::Trace)...;
     label::Union{String,Nothing}=nothing)
   label = something(label,rand_label()) 
   PopulationStateExpKernel(label,n,traces)
@@ -34,7 +34,7 @@ struct PopulationStateExpKernelInhibitory{N}  <: PopulationStateMarkovian
   traces::NTuple{N,Trace}
 end
 nneurons(ps::PopulationStateExpKernelInhibitory) = ps.n
-function PopulationStateExpKernelInhibitory(n::Int64,traces...;
+function PopulationStateExpKernelInhibitory(n::Int64,(traces::Trace)...;
     label::Union{String,Nothing}=nothing)
   label = something(label,rand_label()) 
   PopulationStateExpKernelInhibitory(label,n,traces)
@@ -45,6 +45,19 @@ function reset!(ps::PopulationStateExpKernelInhibitory)
   end
   return nothing
 end
+
+
+function population_state_exp_and_trace(n::Integer,τ::Float64; label::Union{String,Nothing}=nothing)
+  trace = Trace(τ,n,ForDynamics())
+  return PopulationStateExpKernel(n,trace;label=label),trace
+end
+function population_state_exp_and_trace_inhibitory(n::Integer,τ::Float64; 
+    label::Union{String,Nothing}=nothing)
+  trace = Trace(τ,n,ForDynamics())
+  return PopulationStateExpKernelInhibitory(n,trace;label=label),trace
+end
+
+
 
 # global inhibition as a population state
 struct PopulationStateGlobalStabilization
@@ -68,7 +81,8 @@ function reset!(ps::PopulationStateGlobalStabilization)
   reset!((ps.tra_glo,ps.tra_loc))
 end
 
-struct PopulationExpKernel{N,PS<:PopulationStateExpKernel,
+struct PopulationExpKernel{N,
+    PS<:Union{PopulationStateExpKernel,PopulationStateExpKernelInhibitory},
     TC<:NTuple{N,Connection},
     TP<:NTuple{N,PopulationStateMarkovian},
     NL<:AbstractNonlinearity} <: AbstractPopulation
@@ -79,8 +93,8 @@ struct PopulationExpKernel{N,PS<:PopulationStateExpKernel,
   nonlinearity::NL # nonlinearity if present
   spike_proposals::Vector{Float64} # memory allocation 
 end
-function PopulationExpKernel(state::PopulationStateExpKernel,input::Vector{Float64},
-    (conn_pre::Tuple{C,PS} where {C<:Connection,PS<:PopulationStateExpKernel})...;
+function PopulationExpKernel(state::PopulationStateMarkovian,input::Vector{Float64},
+    (conn_pre::Tuple{C,PS} where {C<:Connection,PS<:PopulationStateMarkovian})...;
       nonlinearity::AbstractNonlinearity=NLRelu())
   connections = Tuple(getindex.(conn_pre,1))
   typeassert.(connections,ConnectionExpKernel)
@@ -89,7 +103,7 @@ function PopulationExpKernel(state::PopulationStateExpKernel,input::Vector{Float
   return PopulationExpKernel(state,connections,pre_states,input,nonlinearity,spike_proposals) 
 end
 # one population only!
-function PopulationExpKernel(state::PopulationStateExpKernel,conn::Connection,input::Vector{Float64}; 
+function PopulationExpKernel(state::PopulationStateMarkovian,conn::Connection,input::Vector{Float64}; 
     nonlinearity::AbstractNonlinearity=NLRelu())
   return PopulationExpKernel(state,input,(conn,state);nonlinearity=nonlinearity)
 end
@@ -318,6 +332,23 @@ function reset!(rec::RecFullTrain)
     fill!(spkneu,-1)
   end
   return nothing
+end
+
+function numerical_rates(rec::RecFullTrain{N}) where N
+  rates = Vector{Float64}[]
+  for p in 1:N
+    (spkt,spkneu) = rec.timesneurons[p]
+    idx_good = isfinite.(spkt)
+    t_good = spkt[idx_good]
+    neu_good = spkneu[idx_good]
+    neu_tot = maximum(neu_good)
+    Ttot = t_good[end]
+    rates_neu = map(1:neu_tot) do idx_neu
+      return count(==(idx_neu),neu_good) / Ttot
+    end
+    push!(rates,rates_neu)
+  end
+  return rates
 end
 
 # general signature: record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
