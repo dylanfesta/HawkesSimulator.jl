@@ -28,6 +28,21 @@ function reset!(ps::PopulationStateExpKernel)
   return nothing
 end
 
+@inline function interaction_kernel(t::Real,psker::PopulationExpKernel)
+  τ = psker.traces[1].τ
+   return interaction_kernel(t,KernelExp(τ))
+end
+@inline function interaction_kernel_upper(t::Real,psker::PopulationExpKernel)
+  τ = psker.traces[1].τ
+   return interaction_kernel_upper(t,KernelExp(τ))
+end
+@inline function interaction_kernel_fourier(ω::Real,psker::PopulationExpKernel)
+  τ = psker.traces[1].τ
+   return interaction_kernel_fourier(ω,KernelExp(τ))
+end
+
+
+
 struct PopulationStateExpKernelInhibitory{N}  <: PopulationStateMarkovian
   label::Symbol
   n::Int64
