@@ -276,17 +276,13 @@ propagation of signals extremely cumbersome.
 function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetwork)
   # for each postsynaptic network, compute spike proposals 
   @assert npopulations(ntw) == 1 "This function is only for 1-population networks"
-  pop = ntw.populations[1]
-  nneu = nneurons(pop)
-  for ineu in 1:nneu
-    pop.spike_proposals[ineu] = compute_next_spike(t_now,pop,ineu) 
-  end
-  (tbest, neuron_best) = findmin(pop.spike_proposals) 
+  thepop = ntw.populations[1]
+  (t_next_spike,neuron_spike) = compute_next_spike(t_now,thepop)
   # select train for that specific neuron
   # and add the spike time to it
-  push!(pop.state.trains[neuron_best],tbest)
+  push!(thepop.state.trains[neuron_spike],t_next_spike)
   # return the new current time, corresponding to the spiketime 
-  return tbest
+  return t_next_spike
 end
 
 

@@ -50,29 +50,33 @@ mykernel = H.KernelExp(mytau);
 theplot = let ts = range(-1.0,5;length=150),
   y = map(t->H.interaction_kernel(t,mykernel) , ts )
   plot(ts , y ; linewidth=3,leg=false,xlabel="time (s)",
+    color = :black,
      ylabel="interaction kernel")
 end;
 plot(theplot)
 
-# Now I build the network, using the simplified constructor
-# for one-population networks.
-# The object `PopulationState` initializes a population of 
-# Hawkes neurons of the specified size (1, in this case)
-# and the kernel `mykernel` neurons in the same population
-# all have the same kernel.  
-# (this might be an inconvenience if one wants qualitatively different 
-# self-connections... but it might be fixed in future versions)
-
+#=
+Now I build the network, using the simplified constructor
+for one-population networks. The object `PopulationState` 
+initializes a population of Hawkes neurons of the specified 
+size (1, in this case) and the kernel `mykernel` neurons 
+in the same population all have the same kernel.  
+(this might be an inconvenience if one wants qualitatively different 
+self-connections... but it might be fixed in future versions)
+=#
 popstate = H.PopulationState(mykernel,1)
 ntw = H.RecurrentNetwork(popstate,myw,myinput);
 
 ## #src
-# ## Simulation
-# The length of the simulation is measured by the total number of spikes
-# here called `num_spikes`.  
-# The function `flush_trains!(...)` is used to store older spikes as 
-# history and let them be ignored by the kernels.
-# The time parameters should be regulated based on the kernel shape.
+#=
+## Simulation
+
+The length of the simulation is measured by the total number of spikes
+here called `num_spikes`.  
+The function `flush_trains!(...)` is used to store older spikes as 
+history and let them be ignored by the kernels.
+The time parameters should be regulated based on the kernel shape.
+=#
 
 function run_simulation!(network,num_spikes,
     t_flush_trigger=300.0,t_flush=100.0)

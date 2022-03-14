@@ -25,7 +25,8 @@ using HawkesSimulator; const global H = HawkesSimulator
 
 function onedmat(x::Real)
   return cat(x;dims=2)
-end
+end;
+nothing #hide
 ````
 
 ## Rate Model
@@ -45,7 +46,8 @@ const weights = [1.25 -0.65 ; 1.2 -0.5]
 const input = [20.0, 50.0]
 const dt = 0.01E-3
 const Ttot = 1.0
-const taus_hawk = [3.0,3.0]
+const taus_hawk = [3.0,3.0];
+nothing #hide
 ````
 
 Let's plot the activation function
@@ -78,11 +80,14 @@ function run_2D_network()
     v += dv*dt
   end
   return times,rates
-end
+end;
 
 
-runtimes,runrates = run_2D_network()
+runtimes,runrates = run_2D_network();
+nothing #hide
 ````
+
+rates and times have been stored in the variables above!
 
 ## Hawkes process
 
@@ -102,28 +107,32 @@ define conenctions
 conn_ee = H.ConnectionExpKernel(onedmat(weights_equiv[1,1]),tr_e)
 conn_ie = H.ConnectionExpKernel(onedmat(weights_equiv[2,1]),tr_e)
 conn_ei = H.ConnectionExpKernel(onedmat(weights_equiv[1,2]),tr_i)
-conn_ii = H.ConnectionExpKernel(onedmat(weights_equiv[2,2]),tr_i)
+conn_ii = H.ConnectionExpKernel(onedmat(weights_equiv[2,2]),tr_i);
+nothing #hide
 ````
 
 define populations
 
 ````@example hawkes_vs_2D_linear
 pop_e = H.PopulationExpKernel(ps_e,inputs_equiv[1:1],(conn_ee,ps_e),(conn_ei,ps_i) )
-pop_i = H.PopulationExpKernel(ps_i,inputs_equiv[2:2],(conn_ie,ps_e),(conn_ii,ps_i) )
+pop_i = H.PopulationExpKernel(ps_i,inputs_equiv[2:2],(conn_ie,ps_e),(conn_ii,ps_i) );
+nothing #hide
 ````
 
-define recorder:\\
+define recorder:
 I record all spiketimes, although I only need the rate
 
 ````@example hawkes_vs_2D_linear
 nrec = 10_010
-rec = H.RecFullTrain(nrec,2)
+rec = H.RecFullTrain(nrec,2);
+nothing #hide
 ````
 
 define network:
 
 ````@example hawkes_vs_2D_linear
-netw = H.RecurrentNetworkExpKernel((pop_e,pop_i),(rec,))
+netw = H.RecurrentNetworkExpKernel((pop_e,pop_i),(rec,));
+nothing #hide
 ````
 
 run network
@@ -143,7 +152,8 @@ t_end=run_simulation!(netw,nspikes)
 
 # #src
 
-rates_e,rates_i = H.numerical_rates(rec)
+rates_e,rates_i = H.numerical_rates(rec);
+nothing #hide
 ````
 
 ## Result: compare the rate in the two sytems
