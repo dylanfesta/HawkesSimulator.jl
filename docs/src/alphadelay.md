@@ -1,7 +1,9 @@
+```@meta
+EditURL = "https://github.com/dylanfesta/HawkesSimulator.jl/blob/master/examples/alphadelay.jl"
+```
 
-# # 1D Hawkes process with delayed alpha kernel
+# 1D Hawkes process with delayed alpha kernel
 
-#=
 In this example, I simulate either a 1D or a 2D Hawkes process, with a
 delayed-alpha interaction kernel
 
@@ -13,9 +15,10 @@ g(t) = H(t-t_{\text{delay}}) \,  \frac{(t-t_{\text{delay}})}{\tau^2} \,
 where $H(x)$ is the Heaviside function: $H(x)=0$ for $x<0$, $H(x)=1$ for $t\geq 0$.
 
 Kernels are always normalized so that their integral is 1.
-=#
 
-# ## Initialization
+## Initialization
+
+````@example alphadelay
 using LinearAlgebra,Statistics,StatsBase,Distributions
 using Plots,NamedColors ; theme(:default) #; plotlyjs()
 using FFTW
@@ -26,9 +29,12 @@ Random.seed!(0)
 
 using HawkesSimulator; const global H = HawkesSimulator
 
-## # src
-# ## Define and visualize the kernel
+# # src
+````
 
+## Define and visualize the kernel
+
+````@example alphadelay
 mytau = 0.5
 mydelay = 2.0
 myw = fill(0.85,(1,1)) # 1x1 matrix
@@ -40,39 +46,40 @@ plt = let ts = range(-0.5,8;length=150)
   y = [H.interaction_kernel(_t,ker) for _t in ts]
   plt=plot(ts,y ; linewidth=3,leg=false,xlabel="time (s)",
       ylabel="interaction kernel")
-  ymax=ylims()[2]    
+  ymax=ylims()[2]
   plot!(plt,[0,0],[0,ymax];linestyle=:dash,linecolor=:black)
 end;
 plot(plt)
+````
 
-#=
 Note that the kernel starts after zero, according to the delay indicated.
 
-As a side note: in order to simulate Hawkes processes, one always 
-needs to define a *non-increasing upper limit* to the kernel. 
-This is what it looks like for this kernel. 
-=#
+As a side note: in order to simulate Hawkes processes, one always
+needs to define a *non-increasing upper limit* to the kernel.
+This is what it looks like for this kernel.
+
+````@example alphadelay
 plt = let  ts = range(-0.5,8;length=150)
   y = [H.interaction_kernel(_t,ker) for _t in ts]
   yu = [H.interaction_kernel_upper(_t,ker) for _t in ts]
   plt = plot(ts,y ; linewidth=3,xlabel="time (s)",
       ylabel="interaction kernel", label="true kernel")
-  plot!(plt, ts,yu ; linewidth=2, label="upper limit", linestyle=:dash)   
-  ymax=ylims()[2]    
+  plot!(plt, ts,yu ; linewidth=2, label="upper limit", linestyle=:dash)
+  ymax=ylims()[2]
   plot!(plt,[0,0],[0,ymax];linestyle=:dash,linecolor=:black,label="")
 end;
 plot(plt)
+````
 
-# the closer the upper limit is to the true kernel,
-# the more efficient the simulation.
+the closer the upper limit is to the true kernel,
+the more efficient the simulation.
 
-##      #src
-#=
 ## Build the network and run it
 
 I compare the final rate with what I expect from the analytic solution
 (see first example file)
-=#
+
+````@example alphadelay
 pops = H.PopulationState(ker,1)
 ntw = H.RecurrentNetwork(pops,myw,myinput)
 
@@ -97,28 +104,31 @@ rate_analytic = rate_analytic[1] # from 1-dim vector to scalar
 
 @info "Mean rate -  numerical $(round(ratenum;digits=2)), analytic  $(round(rate_analytic;digits=2))"
 
-## # src
-#=
+# # src
+````
+
 ## Covariance density
 
 First, compute covariance density numerically for a reasonable time step
-=#
+
+````@example alphadelay
 mytrain = pops.trains_history[1]
 mydt = 0.1
 myτmax = 60.0
 mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
 cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
+nothing #hide
+````
 
-#=
-now compute covariance density analytically (as in Hawkes models), at higher resolution, 
+now compute covariance density analytically (as in Hawkes models), at higher resolution,
 and compare analytic and numeric
 
-Note that the high resolution is not just for a better plot, but also to 
-ensure the result is more precise when we move from frequency domain 
+Note that the high resolution is not just for a better plot, but also to
+ensure the result is more precise when we move from frequency domain
 (Fourier transforms) to time domain.
-=#
 
+````@example alphadelay
 function four_high_res(dt::Real,Tmax::Real) # higher time resolution, longer time
   k1,k2 = 2 , 0.01
   myτmax = Tmax * k1
@@ -144,9 +154,13 @@ plt= let plt = plot(xlabel="time delay (s)",ylabel="Covariance density")
 end;
 
 plot(plt)
+````
 
-# Analytics and numerics match quite well, although not perfectly. Whatever.
+Analytics and numerics match quite well, although not perfectly. Whatever.
 
-# **THE END**
+**THE END**
 
-# using Literate ; Literate.markdown("examples/alphadelay.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src
+---
+
+*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

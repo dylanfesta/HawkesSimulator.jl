@@ -18,15 +18,15 @@ Random.seed!(0)
 
 using HawkesSimulator; global const H = HawkesSimulator
 
-##
+## # src
+#=
+## Define the interaction kernel
 
-# ## Define the interaction kernel
-# The kernel is a delayed-alpha, see that example file for definition and
-# details.
-#
-# Important : the autaptic weights (diagonal of `wmat`) are set to zero
-# if not, there would also be a self-delayed-interaction. 
+The kernel is shaped as a delayed-alpha.
 
+Important : the autaptic weights (diagonal of `wmat`) are set to zero
+if not, there would also be a self-delayed-interaction. 
+=#
 mytau = 0.6
 mydelay = 1.0
 mywmat = [ 0.0   0.1 
