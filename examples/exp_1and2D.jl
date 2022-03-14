@@ -188,8 +188,6 @@ Where $r$ is the mean rate, and $S(t)$ is the spike train.
 Here I compute it numerically.
 =#
 
-
-
 mytrain = popstate.trains_history[1]
 mydt = 0.1
 myτmax = 25.0
@@ -197,7 +195,7 @@ mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
 cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
 
-## # src
+## #src
 # Now I compute the covariance density analytically, at higher resolution,
 # and I compare the two.
 
@@ -228,7 +226,7 @@ end;
 plot(theplot)
 
 # 1D system completed !
-## # src
+## #src
 # ## 2D Hawkes process, same stuff
 
 myτ = 1/2.33
@@ -330,4 +328,4 @@ oneplot(2,2)
 
 # **THE END**
 
-# Literate.markdown("examples/exp_1and2D.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src
+# Using Literate ; Literate.markdown("examples/exp_1and2D.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src

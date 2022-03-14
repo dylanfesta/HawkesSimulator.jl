@@ -207,8 +207,7 @@ myτmax = 25.0
 mytaus = H.get_times(mydt,myτmax)
 ntaus = length(mytaus)
 cov_num = H.covariance_self_numerical(mytrain,mydt,myτmax);
-
-# # src
+nothing #hide
 ````
 
 Now I compute the covariance density analytically, at higher resolution,
@@ -243,11 +242,6 @@ plot(theplot)
 ````
 
 1D system completed !
-
-````@example exp_1and2D
-# # src
-````
-
 ## 2D Hawkes process, same stuff
 
 ````@example exp_1and2D
