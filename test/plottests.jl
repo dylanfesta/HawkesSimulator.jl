@@ -9,8 +9,6 @@ using FFTW
 using Random
 Random.seed!(0)
 
-push!(LOAD_PATH, abspath(@__DIR__,".."))
-
 using  HawkesSimulator; const global H = HawkesSimulator
 
 ##
@@ -26,72 +24,79 @@ function plotvs(x::AbstractArray{<:Real},y::AbstractArray{<:Real})
   return plt
 end
 
+
+function rates_analytic(W::Matrix{R},r0::Vector{R}) where R
+  return (I-W)\r0
+end
+
+##
+const ne = 1
+const ni = 1
+const N = ne+ni
+const idxe = 1:ne
+const idxi = idxe[end] .+ (1:ni)
+const wmat = [ 10.  -15.
+               10.  -15. ]
+const wmat_ee = wmat[idxe,idxe]
+const wmat_ie = wmat[idxi,idxe]
+const wmat_ei = -wmat[idxe,idxi]
+const wmat_ii = -wmat[idxi,idxi]
+
+
+const τe = 1.
+const τi = 0.6
+
+const pse,trae = H.population_state_exp_and_trace(ne,τe)
+const psi,trai = H.population_state_exp_and_trace_inhibitory(ni,τi)
+
+const conn_ee = H.ConnectionExpKernel(wmat_ee,trae)
+const conn_ie = H.ConnectionExpKernel(wmat_ie,trae)
+const conn_ei = H.ConnectionExpKernel(wmat_ei,trai)
+const conn_ii = H.ConnectionExpKernel(wmat_ii,trai)
+
+const in_e = 120.0
+const in_i = 120.0
+
+const r0e = fill(in_e,ne)
+const r0i = fill(in_i,ni)
+const r0full = vcat(r0e,r0i)
+
+const rates_an = rates_analytic(wmat,r0full)
+@info """\\
+  Expected E rates : $(round(rates_an[1];sigdigits=3))\\
+  Expected I rates : $(round(rates_an[end];sigdigits=3))
+"""
 ##
 
-nneus = 3
-tauker = 1.5
-rates_start = 50.0
-Tend = 60.0
+const population_e = H.PopulationExpKernel(pse,r0e,(conn_ei,psi),(conn_ee,pse))
+const population_i = H.PopulationExpKernel(psi,r0i,(conn_ii,psi),(conn_ie,pse))
 
-noweights = zeros(nneus,nneus)
-noinputs = zeros(nneus)
-
-## generate trains
-trains = [ H.make_poisson_samples(rates_start,Tend) for _ in 1:nneus]
-
-## Build the population 
-
-trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
-
-
-popstate = H.PopulationStateMixedExp(nneus,trains,trace_ker)
-connection = H.ConnectionExpKernel(noweights,trace_ker)
-population = H.PopulationMixedExp(popstate,connection,noinputs)
-
-n_spikes = round(Integer,rates_start*Tend*0.9*nneus)
-recorder = H.RecFullTrain(n_spikes,1)
-network = H.RecurrentNetworkExpKernel(population,recorder)
+const n_spikes = 500_000
+const recorder = H.RecFullTrain(n_spikes+1,2)
+const network = H.RecurrentNetworkExpKernel((population_e,population_i),(recorder,))
 
 function simulate!(network,num_spikes)
   t_now = 0.0
   H.reset!(network) # clear spike trains etc
-  for _ in 1:num_spikes
+  H.reset!.((pse,psi))
+  @showprogress "Running Hawkes process..." for _ in 1:num_spikes
     t_now = H.dynamics_step!(t_now,network)
   end
   return t_now
 end
 
-Tmax = simulate!(network,n_spikes)
 
-trains_out = H.get_trains(recorder,nneus)
+t_end =simulate!(network,n_spikes)
 
-@test all( trains[1][1:length(trains_out[1])] .== trains_out[1])
-@test all( trains[2][1:length(trains_out[2])] .== trains_out[2])
-@test all( trains[3][1:length(trains_out[3])] .== trains_out[3])
+trains = H.get_trains(recorder)
 
-##
+rates_num_e = H.numerical_rates(recorder)[1]
+rates_num_i = H.numerical_rates(recorder)[2]
 
-
-someweights = [  0 0 0 ; 0.5 0 0 ; 1.0 0 0.0]
-
-popstate = H.PopulationStateMixedExp(nneus,trains,trace_ker)
-connection = H.ConnectionExpKernel(someweights,trace_ker)
-population = H.PopulationMixedExp(popstate,connection,noinputs)
-
-n_spikes = round(Integer,(1+1.5+2)rates_start*Tend*0.9)
-recorder = H.RecFullTrain(n_spikes,1)
-network = H.RecurrentNetworkExpKernel(population,recorder)
-
-Tmax = simulate!(network,n_spikes)
-
-trains_out2 = H.get_trains(recorder,nneus)
-
-therates = H.numerical_rates(recorder,nneus,Tmax)
-
-@test all( trains[1][1:length(trains_out2[1])] .== trains_out2[1])
-@test isapprox(therates[2],1.5*rates_start;rtol=0.2)
-@test isapprox(therates[3],2*rates_start;rtol=0.2)
-
-
-##
-#error("shtop!")
+@info """\\
+  Expected E rate : $(round(rates_an[1];sigdigits=3))\\
+  Numerical E rate:  $(round(mean(rates_num_e[1:ne]);sigdigits=3))
+  \n\n
+  Expected I rate : $(round(rates_an[end];sigdigits=3))\\
+  Numerical I rate:  $(round(mean(rates_num_i[1:ni]);sigdigits=3))
+"""

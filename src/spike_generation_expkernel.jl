@@ -9,10 +9,10 @@
 
 abstract type PopulationStateMarkovian <: AbstractPopulationState end
 
-struct PopulationStateExpKernel{N}  <: PopulationStateMarkovian
+struct PopulationStateExpKernel  <: PopulationStateMarkovian
   label::Symbol
   n::Int64
-  traces::NTuple{N,Trace}
+  traces::NTuple{N,Trace} where N
 end
 nneurons(ps::PopulationStateExpKernel) = ps.n
 
@@ -43,16 +43,16 @@ end
 
 
 
-struct PopulationStateExpKernelInhibitory{N}  <: PopulationStateMarkovian
+struct PopulationStateExpKernelInhibitory  <: PopulationStateMarkovian
   label::Symbol
   n::Int64
-  traces::NTuple{N,Trace}
+  traces::NTuple{N,Trace} where N
 end
 nneurons(ps::PopulationStateExpKernelInhibitory) = ps.n
 function PopulationStateExpKernelInhibitory(n::Int64,(traces::Trace)...;
     label::Union{String,Nothing}=nothing)
   label = something(label,rand_label()) 
-  PopulationStateExpKernelInhibitory(label,n,traces)
+  return PopulationStateExpKernelInhibitory(label,n,traces)
 end
 function reset!(ps::PopulationStateExpKernelInhibitory)
   for tra in ps.traces
@@ -71,7 +71,6 @@ function population_state_exp_and_trace_inhibitory(n::Integer,τ::Float64;
   trace = Trace(τ,n,ForDynamics())
   return PopulationStateExpKernelInhibitory(n,trace;label=label),trace
 end
-
 
 
 # global inhibition as a population state
@@ -296,6 +295,9 @@ function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.
   while (t-t_start)<Tmax 
     dorates!(t)
     M = sum(rates)
+    if M==0 # this happens when inhibition is stronger than input :-(
+      break
+    end
     Δt =  -log(rand())/M # rand(Exponential())/M
     t = t+Δt
     u = rand()*M # random between 0 and M
@@ -306,7 +308,7 @@ function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.
       return (t,k)
     end
   end
-  @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test?)"
+  @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test? or too much inh?)"
   return (Tmax + t_start,1)
 end
 
@@ -460,9 +462,8 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
   neuron_best = Vector{Int64}(undef,npops)
   # for each postsynaptic network, compute spike proposals 
   for (kn,pop) in enumerate(ntw.populations)
-    sbug =   compute_next_spike(t_now,pop)
-    #@show sbug
-    (proposals_best[kn],neuron_best[kn]) = sbug
+    nextspk =   compute_next_spike(t_now,pop)
+    (proposals_best[kn],neuron_best[kn]) = nextspk
   end 
   # select next spike (best across all input_networks)
   (tfire,popfire) = findmin(proposals_best)

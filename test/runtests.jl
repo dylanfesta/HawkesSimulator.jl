@@ -358,4 +358,9 @@ end
 end
 
 
+
+@testset "Exp kernel Vs 2D model" begin
+
+end
+
 ##

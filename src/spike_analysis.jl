@@ -22,9 +22,21 @@ end
 ##########################
 ## covariance density
 
+"""
+    bin_spikes(Y::Vector{R},dt::R,Tend::R;Tstart::R=0.0) where R
 
-function bin_spikes(Y::Vector{R},dt::R,Tend::R;
-    Tstart::R=0.0) where R
+# Arguments
+  + `Y::Vector{<:Real}` : vector of spike times
+  + `dt::Real` : time bin size
+  + `Tend::Real` : end time for the raster
+# Optional argument
+  + `Tstart::Real=0.0` : start time for the raster
+
+# Returns   
+  + `binned_spikes::Vector{<:Integer}` : `binned_spikes[k]` is the number of spikes that occur 
+      in the timebin `k`  (i.e. between `Tstart + (k-1)*dt` and `Tstart + k*dt`)
+"""
+function bin_spikes(Y::Vector{R},dt::R,Tend::R;Tstart::R=0.0) where R
   times = range(Tstart,Tend;step=dt)  
   ret = fill(0,length(times)-1)
   for y in Y
@@ -172,10 +184,8 @@ function get_frequencies(dt::Real,T::Real)
 end
 
 
-
-
 """
-     draw_spike_raster(trains::Vector{Vector{Float64}},
+  draw_spike_raster(trains::Vector{Vector{Float64}},
       dt::Real,Tend::Real;
       Tstart::Real=0.0,
       spike_size::Integer = 5,
@@ -187,23 +197,22 @@ end
 Draws a matrix that contains the raster plot of the spike train.
 
 # Arguments
-+ `Trains` :  Vector of spike trains. The order of the vector corresponds to 
-the order of the plot. First element is at the top, second is second row, etc.
-+ `dt` : time interval representing one horizontal pixel  
-+ `Tend` : final time to be considered
+  + `Trains` :  Vector of spike trains. The order of the vector corresponds to 
+    the order of the plot. First element is at the top, second is second row, etc.
+  + `dt` : time interval representing one horizontal pixel  
+  + `Tend` : final time to be considered
 
 # Optional arguments
-+ `Tstart` : starting time
-+ `max_size` : throws an error if image is larger than this number (in pixels)
-+ `spike_size` : heigh of spike (in pixels)
-+ `spike_separator` : space between spikes, and vertical padding
-+ `background_color` : self-explanatory
-+ `spike_colors` : if a single color, color of all spikes, if vector of colors, 
-color for each neuron (length should be same as number of neurons)
+  + `Tstart::Real` : starting time
+  + `spike_size::Integer` : heigh of spike (in pixels)
+  + `spike_separator::Integer` : space between spikes, and vertical padding
+  + `background_color::Color` : self-explanatory
+  + `spike_colors::Union{Color,Vector{Color}}` : if a single color, color of all spikes, if vector of colors, 
+     color for each neuron (length should be same as number of neurons)
+  + `max_size::Integer` : throws an error if image is larger than this number (in pixels)
 
-# returns
-`raster_matrix::Matrix{Color}` you can save it as a png file
-
+# Returns
+  + `raster_matrix::Matrix{Color}` you can save it as a png file
 """
 function draw_spike_raster(trains::Vector{Vector{Float64}},
   dt::Real,Tend::Real;
