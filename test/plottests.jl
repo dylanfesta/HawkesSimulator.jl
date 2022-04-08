@@ -35,8 +35,8 @@ const ni = 1
 const N = ne+ni
 const idxe = 1:ne
 const idxi = idxe[end] .+ (1:ni)
-const wmat = [ 10.  -15.
-               10.  -15. ]
+const wmat = [ 30.  -54.5
+               30.  -54.5 ]
 const wmat_ee = wmat[idxe,idxe]
 const wmat_ie = wmat[idxi,idxe]
 const wmat_ei = -wmat[idxe,idxi]
@@ -44,7 +44,7 @@ const wmat_ii = -wmat[idxi,idxi]
 
 
 const τe = 1.
-const τi = 0.6
+const τi = 1.
 
 const pse,trae = H.population_state_exp_and_trace(ne,τe)
 const psi,trai = H.population_state_exp_and_trace_inhibitory(ni,τi)
@@ -71,7 +71,7 @@ const rates_an = rates_analytic(wmat,r0full)
 const population_e = H.PopulationExpKernel(pse,r0e,(conn_ei,psi),(conn_ee,pse))
 const population_i = H.PopulationExpKernel(psi,r0i,(conn_ii,psi),(conn_ie,pse))
 
-const n_spikes = 500_000
+const n_spikes = 5_000
 const recorder = H.RecFullTrain(n_spikes+1,2)
 const network = H.RecurrentNetworkExpKernel((population_e,population_i),(recorder,))
 
@@ -88,7 +88,8 @@ end
 
 t_end =simulate!(network,n_spikes)
 
-trains = H.get_trains(recorder)
+trains_e = H.get_trains(recorder;pop_idx=1)[1]
+trains_i = H.get_trains(recorder;pop_idx=2)[1]
 
 rates_num_e = H.numerical_rates(recorder)[1]
 rates_num_i = H.numerical_rates(recorder)[2]
@@ -100,3 +101,5 @@ rates_num_i = H.numerical_rates(recorder)[2]
   Expected I rate : $(round(rates_an[end];sigdigits=3))\\
   Numerical I rate:  $(round(mean(rates_num_i[1:ni]);sigdigits=3))
 """
+
+#plotvs(diff(trains_e[1:2000]),diff(trains_i[1:2000]))

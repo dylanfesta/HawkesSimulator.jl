@@ -257,13 +257,31 @@ function compute_rate(t_now::Real,external_input::Real,
   end
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
-
 function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
   inputs = pop.input
   for i in eachindex(r_alloc)
     r_alloc[i] = compute_rate(t_now,inputs[i],pop,i)
   end
   return nothing
+end
+
+
+# upper boundary ignores inhibitory component, because it's increasing!
+function compute_rates_upper!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
+  inputs = pop.input
+  for i in eachindex(r_alloc)
+    r_alloc[i] = compute_rate_upper(t_now,inputs[i],pop,i)
+  end
+  return nothing
+end
+function compute_rate_upper(t_now::Real,external_input::Real,
+    pop::PopulationExpKernel, idxneu::Integer)
+  ret = external_input
+  ps_post = pop.state
+  for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
+    ret += max(0.0,propagated_signal(t_now,idxneu,ps_post,conn,ps_pre))
+  end
+  return apply_nonlinearity(ret,pop.nonlinearity)
 end
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
@@ -291,11 +309,13 @@ function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.
   t = t_now
   n = nneurons(pop)
   rates = pop.spike_proposals # recycle & reuse  # Vector{Float64}(undef,n)
+  dorates_upper!(t) = compute_rates_upper!(rates,t,pop)
   dorates!(t) = compute_rates!(rates,t,pop)
   while (t-t_start)<Tmax 
-    dorates!(t)
+    dorates_upper!(t)
     M = sum(rates)
-    if M==0 # this happens when inhibition is stronger than input :-(
+    if M==0 
+      @error "Something wrong with neural inputs!"
       break
     end
     Δt =  -log(rand())/M # rand(Exponential())/M
@@ -308,7 +328,7 @@ function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.
       return (t,k)
     end
   end
-  @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test? or too much inh?)"
+  @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test? or too much inh?)" maxlog=20
   return (Tmax + t_start,1)
 end
 
