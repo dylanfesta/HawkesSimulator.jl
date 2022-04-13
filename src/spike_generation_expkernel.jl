@@ -122,6 +122,18 @@ function PopulationExpKernel(state::PopulationStateMarkovian,conn::Connection,in
   return PopulationExpKernel(state,input,(conn,state);nonlinearity=nonlinearity)
 end
 
+
+function set_initial_rates!(pop::PopulationExpKernel,
+    rates::Union{Nothing,Vector{<:Real}})
+  if !isnothing(rates)
+    @assert nneurons(pop) == length(rates) "Dimensions wrong!"
+    pop.state.traces[1].val .= rates
+  end
+  return nothing
+end
+
+
+
 struct ConnectionExpKernel{N,PL<:NTuple{N,PlasticityRule}} <: Connection
   weights::Matrix{Float64}
   pre_trace::Trace
@@ -195,6 +207,13 @@ function burn_spike!(t_spike::Real,ps::PopulationStateMarkovian,idx_update::Inte
   for tra in ps.traces
     propagate_for_dynamics!(t_spike,tra) # update full trace to t_spike 
     update_for_dynamics!(tra,idx_update) # add pulse at index
+  end
+  return nothing
+end
+function burn_spike!(t_spike::Real,ps::PopulationStateMarkovian)
+  # take care of traces  
+  for tra in ps.traces
+    propagate_for_dynamics!(t_spike,tra) # update full trace to t_spike 
   end
   return nothing
 end
@@ -307,24 +326,23 @@ end
 function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.0)
   t_start = t_now
   t = t_now
-  n = nneurons(pop)
   rates = pop.spike_proposals # recycle & reuse  # Vector{Float64}(undef,n)
   dorates_upper!(t) = compute_rates_upper!(rates,t,pop)
   dorates!(t) = compute_rates!(rates,t,pop)
   while (t-t_start)<Tmax 
     dorates_upper!(t)
-    M = sum(rates)
-    if M==0 
+    R_up = sum(rates)
+    if R_up==0
       @error "Something wrong with neural inputs!"
       break
     end
-    Δt =  -log(rand())/M # rand(Exponential())/M
+    Δt =  -log(rand())/R_up # rand(Exponential())/R_up
     t = t+Δt
-    u = rand()*M # random between 0 and M
+    u = rand()*R_up # random between 0 and R_up
     dorates!(t)
     cumsum!(rates,rates)
-    k = searchsortedfirst(rates,u)
-    if k <= n
+    if u < rates[end] # else, continue
+      k = searchsortedfirst(rates,u)
       return (t,k)
     end
   end
@@ -346,8 +364,7 @@ end
 #     ::RecurrentNetworkExpKernel)
 #   return nothing  
 # end
-@inline function record_stuff!(::RecNothing,::Real,
-    whatevs...)
+@inline function record_stuff!(::RecNothing,::Real,whatevs...)
   return nothing  
 end
 
@@ -376,6 +393,9 @@ function numerical_rates(rec::RecFullTrain{N}) where N
   for p in 1:N
     (spkt,spkneu) = rec.timesneurons[p]
     idx_good = isfinite.(spkt)
+    if !any(idx_good)
+      return 0.0
+    end
     t_good = spkt[idx_good]
     neu_good = spkneu[idx_good]
     neu_tot = maximum(neu_good)
@@ -488,11 +508,17 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
   # select next spike (best across all input_networks)
   (tfire,popfire) = findmin(proposals_best)
   neufire = neuron_best[popfire]
+  for (kn,pop) in enumerate(ntw.populations)
+    if kn==popfire
+      burn_spike!(tfire,pop.state,neufire)
+    else
+      burn_spike!(tfire,pop.state)
+    end
+  end
+  # update stuff for that specific neuron/population state :
+  # apply plasticity rules ! Each rule in each connection in each population
   psfire = ntw.populations[popfire].state
   label_fire = psfire.label
-  # update stuff for that specific neuron/population state :
-  burn_spike!(tfire,psfire,neufire)
-  # apply plasticity rules ! Each rule in each connection in each population
   for pop in ntw.populations
     post = pop.state
     for (conn,pre) in zip(pop.connections,pop.pre_states)

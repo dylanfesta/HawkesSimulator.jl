@@ -14,7 +14,9 @@ end
 function numerical_rate(train::Vector{Float64};
     Tstart::Real=0.0,Tend::Real=Inf)
   isempty(train) && return 0.0  
-  Tend = min(Tend,train[end])
+  if !isfinite(Tend)
+    Tend = train[end]
+  end
   Δt = Tend - Tstart
   return length(train)/Δt
 end
@@ -294,8 +296,8 @@ function get_trains(rec::RecFullTrain,Nneus::Integer,
   return spiketn_to_trains(spiketn...,Nneus)
 end
 
-function numerical_rates(rec::RecFullTrain,Nneus::Integer,Tend::Real,
-  (pop_idx::Integer)=1;Tstart=0.0)
+function numerical_rates(rec::RecFullTrain,Nneus::Integer,Tend::Real;
+  pop_idx::Integer=1,Tstart::Real=0.0)
   trains = get_trains(rec,Nneus,pop_idx)  
   return numerical_rate.(trains;Tstart=Tstart,Tend=Tend)
 end

@@ -44,6 +44,11 @@ abstract type AbstractNonlinearity end
 # this one is the default
 struct NLRelu <: AbstractNonlinearity end
 
+# between 0 and rmax
+struct NLRmax <: AbstractNonlinearity
+  rmax::Float64
+end
+
 
 # for now, inputs are stationary and constant
 # this can be generalized later

@@ -11,3 +11,14 @@ struct NLRectifiedQuadratic <: AbstractNonlinearity end
     return x*x
   end
 end
+
+
+@inline function apply_nonlinearity(x::Float64,nl::NLRmax)
+  if x < 0.0
+    return 0.0
+  elseif x > nl.rmax
+    return nl.rmax
+  else
+    return x
+  end
+end

@@ -5,6 +5,9 @@ using QuadGK
 using Random ; Random.seed!(0)
 
 
+function rates_analytic(W::Matrix{R},r0::Vector{R}) where R
+  return (I-W)\r0
+end
 @testset "kernels" begin
   # integral is 1
   mykernels = let tau = rand(Uniform(0.3,0.8))
@@ -360,7 +363,80 @@ end
 
 
 @testset "Exp kernel Vs 2D model" begin
+  ne = 5
+  ni = 5
+  N = ne+ni
+  idxe = 1:ne
+  idxi = idxe[end] .+ (1:ni)
+  wee = 1.4
+  wie = 1.0
+  wei = -1.0
+  wii = -0.1
+  wmat = fill(0.0,(N,N))
 
+  wmat[idxe,idxe] .=   wee/(ne-1)
+  wmat[idxi,idxe] .=   wie/ne
+  wmat[idxe,idxi] .=   wei/ni
+  wmat[idxi,idxi] .=   wii/(ni-1)
+  wmat[diagind(wmat)] .= 0.0
+
+  wmat_ee = wmat[idxe,idxe]
+  wmat_ie = wmat[idxi,idxe]
+  wmat_ei = abs.(wmat[idxe,idxi])
+  wmat_ii = abs.(wmat[idxi,idxi])
+
+  τe = 0.5
+  τi = 0.5
+
+  pse,trae = H.population_state_exp_and_trace(ne,τe)
+  psi,trai = H.population_state_exp_and_trace_inhibitory(ni,τi)
+
+  conn_ee = H.ConnectionExpKernel(wmat_ee,trae)
+  conn_ie = H.ConnectionExpKernel(wmat_ie,trae)
+  conn_ei = H.ConnectionExpKernel(wmat_ei,trai)
+  conn_ii = H.ConnectionExpKernel(wmat_ii,trai)
+
+  in_e = 60.0
+  in_i = 50.0
+
+  r0e = fill(in_e,ne)
+  r0i = fill(in_i,ni)
+  r0full = vcat(r0e,r0i)
+
+  rates_an = rates_analytic(wmat,r0full)
+
+  population_e = H.PopulationExpKernel(pse,r0e,(conn_ei,psi),(conn_ee,pse);
+    nonlinearity=H.NLRmax(300.))
+  population_i = H.PopulationExpKernel(psi,r0i,(conn_ii,psi),(conn_ie,pse);
+    nonlinearity=H.NLRmax(300.))
+
+  n_spikes = 10_000
+  recorder = H.RecFullTrain(n_spikes+1,2)
+  network = H.RecurrentNetworkExpKernel((population_e,population_i),(recorder,))
+
+
+  function simulate!(network,num_spikes;initial_e=nothing,initial_i=nothing)
+    t_now = 0.0
+    H.reset!(network) # clear spike trains etc
+    H.reset!.((pse,psi))
+    H.set_initial_rates!(population_e,initial_e)
+    H.set_initial_rates!(population_i,initial_i)
+    for _ in 1:num_spikes
+      t_now = H.dynamics_step!(t_now,network)
+    end
+    return t_now
+  end
+
+    t_end =simulate!(network,n_spikes;initial_e=fill(30.,ne),initial_i=fill(40.,ni))
+
+  rates_num_e = H.numerical_rates(recorder,ne,t_end;pop_idx=1)
+  rates_num_i = H.numerical_rates(recorder,ni,t_end;pop_idx=2)
+  rate_num_e = mean(rates_num_e[1:ne])
+  rate_num_i = mean(rates_num_i[1:ne])
+  @test all(isapprox.(rate_num_e,rates_num_e;rtol=0.2))
+  @test isapprox(rate_num_e,rates_an[1];rtol=0.2)
+  @test all(isapprox.(rate_num_i,rates_num_i;rtol=0.2))
+  @test isapprox(rate_num_i,rates_an[end];rtol=0.2)
 end
 
 ##
