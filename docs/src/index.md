@@ -14,6 +14,7 @@ CurrentModule = HawkesSimulator
 1. [**Simple case: 1D and 2D with exponential kernel**](./exp_1and2D.md) 
 1. [**1D Hawkes process with a delayed kernel**](./alphadelay.md)
 1. [**Show that rate in Hawkes is equivalent to linear network, in a 2D model**](./hawkes_vs_2D_linear.md)
+1. [**Plasticity, pairwise STDP and triplet-based**](./plasticity_STDP.md)
 
 ## Index
 

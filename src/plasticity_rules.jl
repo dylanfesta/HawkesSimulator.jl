@@ -130,6 +130,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
 end
 
 ### Triplets rule
+# WARNING : for standard case, A2minus and A3 minus parameters should be NEGATIVE
 struct PlasticityTriplets <: PlasticityRule
   A2plus::Float64
   A3plus::Float64
@@ -180,7 +181,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for i_post in 1:npost
       wik = weights[i_post,k_pre_spike] 
       if wik > 0
-        Δw = -plast.o1.val[i_post]*(plast.A2minus+plast.A3minus*plast.r2.val[k_pre_spike])
+        Δw = plast.o1.val[i_post]*(plast.A2minus+plast.A3minus*plast.r2.val[k_pre_spike])
         weights[i_post,k_pre_spike] =  plast.bounds(wik,Δw)
       end
     end
