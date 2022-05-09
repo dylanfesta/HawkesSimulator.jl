@@ -118,7 +118,7 @@ function mynormalize(mat::Matrix{<:Real})
   return hasminus,matnorm
 end
 
-function plot_nice_DW2(r1::AbstractVector{R},r2::AbstractVector{R},DW::Matrix{R}) where R
+function plot_nice_DW(r1::AbstractVector{R},r2::AbstractVector{R},DW::Matrix{R}) where R
   rh = 0.5(r1[2]-r1[1])
   colorh = colorant"#F47D23"
   colorm = colorant"white"
@@ -163,6 +163,8 @@ end
 ###  Run numerical simulation for specific parameters
 
 ````@example plasticty_STDP
+# src
+
 const plast_eps = 1E-4
 const A2plus = 1.0 * plast_eps
 const τplus = 0.5

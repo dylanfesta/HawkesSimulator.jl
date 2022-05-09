@@ -22,6 +22,7 @@ Random.seed!(0)
 
 using HawkesSimulator; const global H = HawkesSimulator
 
+## #src
 #=
 # Part 1: Poisson processes
 
@@ -36,7 +37,6 @@ Here the weight change will depent linearly on pre and post rate.
 
 ### Functions that generate spiketrains, plasticity, population, etc
 =#
-
 ## #src
 
 
@@ -105,7 +105,7 @@ function mynormalize(mat::Matrix{<:Real})
   return hasminus,matnorm
 end
 
-function plot_nice_DW2(r1::AbstractVector{R},r2::AbstractVector{R},DW::Matrix{R}) where R
+function plot_nice_DW(r1::AbstractVector{R},r2::AbstractVector{R},DW::Matrix{R}) where R
   rh = 0.5(r1[2]-r1[1])
   colorh = colorant"#F47D23"
   colorm = colorant"white"
@@ -148,10 +148,10 @@ end
 
 
 ## #src
-
 #=
 ###  Run numerical simulation for specific parameters 
 =#
+## src
 
 const plast_eps = 1E-4
 const A2plus = 1.0 * plast_eps
@@ -184,6 +184,7 @@ The STDP rule is potentiation dominated, so the weights grow linearly.
 
 ### Run numerical simulation for varying rates
 =#
+## #src
 
 const nrates = 20
 const rates1 = range(0.1,45.;length=nrates)
