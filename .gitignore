@@ -2,6 +2,7 @@
 *.jl.cov
 *.jl.mem
 *.gif
+*.pdf
 
 */Manifest.toml
 Manifest.toml
