@@ -118,25 +118,28 @@ function mynormalize(mat::Matrix{<:Real})
   return hasminus,matnorm
 end
 
-function plot_nice_DW(r1::Vector{R},r2::Vector{R},DW::Matrix{R}) where R
+function plot_nice_DW2(r1::AbstractVector{R},r2::AbstractVector{R},DW::Matrix{R}) where R
   rh = 0.5(r1[2]-r1[1])
-  _lims = (0,rh+r1[end])
   colorh = colorant"#F47D23"
   colorm = colorant"white"
   colorl = colorant"#147ABF"
   hasminus = minimum(DW) < -1E-2
   if hasminus
-    myc = cgrad([colorl,colorm,colorh],[-1,0,1.0])
+    @info "CIAO"
+    _mi,_ma = extrema(DW)
+    @show _mid =_mi/(-_ma +_mi)
+    myc = cgrad([colorl,colorm,colorh],[0,_mid,1.0])
   else
     myc = cgrad([colorm,colorh],[0,1.0])
   end
+  _lims = (rh,rh+r1[end])
   return heatmap(r1,r2,DW;
     xlabel = L"r_{\mathrm{post}}",
     ylabel = L"r_{\mathrm{pre}}",
     xlims=_lims,ylims=_lims,
     ratio=1, color=myc)
 end
-function plot_nice_DW_normed(r1::Vector{R},r2::Vector{R},DW::Matrix{R}) where R
+function plot_nice_DW_normed(r1::AbstractVector{R},r2::AbstractVector{R},DW::Matrix{R}) where R
   colorh = colorant"#F47D23"
   colorm = colorant"white"
   colorl = colorant"#147ABF"
@@ -155,9 +158,6 @@ function plot_nice_DW_normed(r1::Vector{R},r2::Vector{R},DW::Matrix{R}) where R
     ratio=1,
     color=myc)
 end
-
-
-plot_nice_DW(rates1,rates2,DW12)
 ````
 
 ###  Run numerical simulation for specific parameters
@@ -344,8 +344,6 @@ show the analytic heatmap
 
 ````@example plasticty_STDP
 plot_nice_DW_normed(rates_an,rates_an,DW12_analytic_dense)
-
-error()
 ````
 
 # Part 2 : pairing protocol

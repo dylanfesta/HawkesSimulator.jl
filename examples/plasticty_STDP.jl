@@ -147,8 +147,6 @@ function plot_nice_DW_normed(r1::AbstractVector{R},r2::AbstractVector{R},DW::Mat
 end
 
 
-plot_nice_DW2(rates1,rates2,DW12)
-
 ## #src
 
 #=
