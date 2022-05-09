@@ -112,6 +112,8 @@ function plot_nice_DW(r1::AbstractVector{R},r2::AbstractVector{R},DW::Matrix{R})
   colorl = colorant"#147ABF"
   hasminus = minimum(DW) < -1E-2
   if hasminus
+    _min,_max = extrema(DW)
+    _mid = -_min/(_max-_min)
     myc = cgrad([colorl,colorm,colorh],[0,_mid,1.0])
   else
     myc = cgrad([colorm,colorh],[0,1.0])

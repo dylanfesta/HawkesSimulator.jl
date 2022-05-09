@@ -24,6 +24,3 @@ CurrentModule = HawkesSimulator
 ```@autodocs
 Modules = [HawkesSimulator]
 ```
-
-TODO : add other  file.
-[comment]: <> ( 1. [**2D delayed-alpha interactions, and non-delayed autapses**](./2d_delay_autapses.md) 1. [**1D delayed-alpha kernel**](./alphadelay.md) 1. [**Plasticity examples, with pairwise STPD and triplets**](./plasticty_STDP.md) )
