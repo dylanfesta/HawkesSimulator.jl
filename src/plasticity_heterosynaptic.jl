@@ -33,9 +33,9 @@ function _hetconstraint_vs_sum(sums::Array{Float64},c::HetStrictSum)
   return .!isapprox.(sums,c.wsum_max;atol=c.tolerance)
 end
 
-struct HetIncoming <: HeterosynapticTarget end
-struct HetOutgoing <: HeterosynapticTarget end
-struct HetBoth <: HeterosynapticTarget end
+struct HetIncoming <: HeterosynapticTarget end # rows
+struct HetOutgoing <: HeterosynapticTarget end # cols
+struct HetBoth <: HeterosynapticTarget end     # both
 
 struct HetAdditive <: HeterosynapticMethod end
 struct HetMultiplicative <: HeterosynapticMethod end
@@ -158,7 +158,7 @@ function _het_plasticity_fix_outgoing!(alloc_sum::Matrix{Float64},Nel::Vector{In
   end
   return nothing
 end
-function _het_plasticity_fix_outgoing!(::Vector{Float64},::Vector{Int64},
+function _het_plasticity_fix_outgoing!(::Matrix{Float64},::Vector{Int64},
     ::Matrix,::HeterosynapticConstraint,::HeterosynapticMethod,::HetIncoming)
   return nothing  
 end
@@ -190,3 +190,23 @@ function _het_plasticity_apply_fix!(
   end
   return nothing
 end
+
+
+function _het_plasticity_apply_fix!( 
+    fixrows::Vector{Float64},::Matrix{Float64},
+    weights::Matrix{Float64},constraint::HeterosynapticConstraint,
+    ::HetAdditive,::HetIncoming)
+
+  @inbounds for ij in CartesianIndices(weights)
+    wij = weights[ij]
+    if iszero(wij) # skip missing connections
+      continue
+    end
+    wij += fixrows[ij[1]]
+    if !iszero(wij)
+      weights[ij] = hardbounds(wij,constraint)
+    end
+  end
+  return nothing
+end
+
