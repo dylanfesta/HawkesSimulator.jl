@@ -50,17 +50,17 @@ function find_which_spiked(label_spike::Symbol,idx_spike::Int64,
   return (k_post,k_pre)
 end
 
-
 # two different signatures, but unified base plasticity update
 
 # signature for ExpKernel: plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
 @inline function plasticity_update!(tfire::Real,label_spike::Symbol,
     neufire::Integer,
-    pspre::AbstractPopulationState,conn::Connection,
     pspost::AbstractPopulationState,
+    conn::Connection,
+    pspre::AbstractPopulationState,
     plast::PlasticityRule)
   k_post,k_pre = find_which_spiked(label_spike,neufire,pspost,pspre)
-  return plasticity_update!(tfire,k_post,k_pre,pspre,conn,pspost,plast)
+  return plasticity_update!(tfire,k_post,k_pre,pspost,conn,pspre,plast)
 end
 
 # signature for general Hawkes
@@ -68,7 +68,7 @@ end
     pspost::PopulationState,conn::Connection,pspre::PopulationState,
     plast::PlasticityRule)
   k_post,k_pre = find_which_spiked(t_spike,pspost,pspre)
-  return plasticity_update!(t_spike,k_post,k_pre,pspre,conn,pspost,plast)
+  return plasticity_update!(t_spike,k_post,k_pre,pspost,conn,pspre,plast)
 end
 
 
@@ -76,14 +76,14 @@ end
 struct PairSTDP <: PlasticityRule
   Aplus::Float64
   Aminus::Float64
-  pre_trace::Trace
   post_trace::Trace
+  pre_trace::Trace
   bounds::PlasticityBounds
   function PairSTDP(τplus,τminus,Aplus,Aminus,n_post,n_pre;
        plasticity_bounds=PlasticityBoundsNonnegative())
-    pre_trace = Trace(τplus,n_pre)
     post_trace = Trace(τminus,n_post)
-    new(Aplus,Aminus,pre_trace,post_trace,plasticity_bounds)
+    pre_trace = Trace(τplus,n_pre)
+    new(Aplus,Aminus,post_trace,pre_trace,plasticity_bounds)
   end
 end
 function reset!(pl::PairSTDP)
@@ -91,7 +91,6 @@ function reset!(pl::PairSTDP)
   reset!(pl.post_trace)
   return nothing
 end
-
 
 function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,plast::PairSTDP)

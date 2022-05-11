@@ -19,6 +19,7 @@ nneurons(ps::PopulationStateExpKernel) = ps.n
 function PopulationStateExpKernel(n::Int64,(traces::Trace)...;
     label::Union{String,Nothing}=nothing)
   label = something(label,rand_label()) 
+  label = Symbol(label)
   PopulationStateExpKernel(label,n,traces)
 end
 function reset!(ps::PopulationStateExpKernel)
@@ -50,8 +51,9 @@ struct PopulationStateExpKernelInhibitory  <: PopulationStateMarkovian
 end
 nneurons(ps::PopulationStateExpKernelInhibitory) = ps.n
 function PopulationStateExpKernelInhibitory(n::Int64,(traces::Trace)...;
-    label::Union{String,Nothing}=nothing)
+    label::Union{String,Nothing} = nothing)
   label = something(label,rand_label()) 
+  label = Symbol(label)
   return PopulationStateExpKernelInhibitory(label,n,traces)
 end
 function reset!(ps::PopulationStateExpKernelInhibitory)
@@ -122,7 +124,6 @@ function PopulationExpKernel(state::PopulationStateMarkovian,conn::Connection,in
   return PopulationExpKernel(state,input,(conn,state);nonlinearity=nonlinearity)
 end
 
-
 function set_initial_rates!(pop::PopulationExpKernel,
     rates::Union{Nothing,Vector{<:Real}})
   if !isnothing(rates)
@@ -131,7 +132,6 @@ function set_initial_rates!(pop::PopulationExpKernel,
   end
   return nothing
 end
-
 
 
 struct ConnectionExpKernel{N,PL<:NTuple{N,PlasticityRule}} <: Connection
