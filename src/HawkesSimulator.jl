@@ -169,6 +169,8 @@ function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
     nonlinearity=nonlinearity))
 end
 
+
+
 ###################
 # traces as structs
 # (after all, why not?  ... why shouldn't I use a struct?)
@@ -255,6 +257,8 @@ end
 #############
 # everything else
 
+# record spiketrains etc
+include("recorders.jl")
 # general Hawkes for any type of kernel
 include("spike_generation_hawkes.jl")
 # the interaction_kernel and interaction_kernel_upper come from here : 
