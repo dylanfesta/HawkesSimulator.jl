@@ -180,33 +180,47 @@ function _het_plasticity_apply_fix!(
     ::HetAdditive,::HetBoth)
   @inbounds for ij in CartesianIndices(weights)
     wij = weights[ij]
-    if iszero(wij) # skip missing connections
-      continue
-    end
-    wij += _mean_nonzero(fixrows[ij[1]],fixcols[ij[2]])
-    if !iszero(wij)
-      weights[ij] = hardbounds(wij,constraint)
+    if !iszero(wij) # skip missing connections
+      wij += _mean_nonzero(fixrows[ij[1]],fixcols[ij[2]])
+      if !iszero(wij)
+        weights[ij] = hardbounds(wij,constraint)
+      end
     end
   end
   return nothing
 end
 
 
+# could be optimized more :-/
 function _het_plasticity_apply_fix!( 
     fixrows::Vector{Float64},::Matrix{Float64},
     weights::Matrix{Float64},constraint::HeterosynapticConstraint,
     ::HetAdditive,::HetIncoming)
-
   @inbounds for ij in CartesianIndices(weights)
     wij = weights[ij]
-    if iszero(wij) # skip missing connections
-      continue
-    end
-    wij += fixrows[ij[1]]
-    if !iszero(wij)
-      weights[ij] = hardbounds(wij,constraint)
+    if !iszero(wij) # skip missing connections
+      wij += fixrows[ij[1]]
+      if !iszero(wij)
+        weights[ij] = hardbounds(wij,constraint)
+      end
     end
   end
   return nothing
 end
 
+# could be optimized more :-/
+function _het_plasticity_apply_fix!( 
+    ::Vector{Float64},fixcols::Matrix{Float64},
+    weights::Matrix{Float64},constraint::HeterosynapticConstraint,
+    ::HetAdditive,::HetOutgoing)
+  @inbounds for ij in CartesianIndices(weights)
+    wij = weights[ij]
+    if !iszero(wij) # skip missing connections
+      wij += fixcols[ij[2]]
+      if !iszero(wij)
+        weights[ij] = hardbounds(wij,constraint)
+      end
+    end
+  end
+  return nothing
+end
