@@ -378,6 +378,23 @@ function reset!(rec::RecFullTrain)
   return nothing
 end
 
+struct RecFullTrainContent
+  timesneurons::NTuple{N,Tuple{Vector{Float64},Vector{Int64}}} where N
+  function RecFullTrainContent(r::RecFullTrain)
+    ret = Any[]
+    for (p,tneus) in enumerate(r.timesneurons )
+      k = r.k_rec[p]
+      times = tneus[1][k]
+      neurons = tneus[2][k]
+      push!(ret,(times,neurons))
+    end
+    new(Tuple(ret...))
+  end
+end
+function get_content(rec::RecFullTrain)
+  return RecFullTrainContent(rec)
+end
+
 function numerical_rates(rec::RecFullTrain{N}) where N
   rates = Vector{Float64}[]
   for p in 1:N

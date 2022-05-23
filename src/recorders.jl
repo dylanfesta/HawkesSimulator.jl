@@ -73,3 +73,16 @@ function record_stuff!(rec::RecTheseWeights,tfire::Real,whatevs...)
   copy!(rec.weights[k],rec.weights_target)
   return nothing
 end
+
+
+struct RecTheseWeightsContent
+  times::Vector{Float64}
+  weights::Vector{Matrix{Float64}}
+  function RecTheseWeightsContent(r::RecTheseWeights)
+    idxs_keep = 1:r.k_ref[]
+    new(r.times[idxs_keep],r.weights[idxs_keep])
+  end
+end
+function get_content(rec::RecTheseWeights)
+  return RecTheseWeightsContent(rec)
+end
