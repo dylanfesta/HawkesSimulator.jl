@@ -71,6 +71,10 @@ end
   return plasticity_update!(t_spike,k_post,k_pre,pspost,conn,pspre,plast)
 end
 
+# no plasticity
+
+plasticity_update!(::Real,::Integer,::Integer,::AbstractPopulationState,::Connection,
+  ::AbstractPopulationState,::NoPlasticity) = nothing
 
 # Pairwise plasticity 
 struct PairSTDP <: PlasticityRule

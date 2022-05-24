@@ -100,7 +100,7 @@ end
 struct PopulationExpKernel{N,
     PS<:Union{PopulationStateExpKernel,PopulationStateExpKernelInhibitory},
     TC<:NTuple{N,Connection},
-    TP<:NTuple{N,PopulationStateMarkovian},
+    TP<:NTuple{N,AbstractPopulationState},
     NL<:AbstractNonlinearity} <: AbstractPopulation
   state::PS
   connections::TC
@@ -110,10 +110,10 @@ struct PopulationExpKernel{N,
   spike_proposals::Vector{Float64} # memory allocation 
 end
 function PopulationExpKernel(state::PopulationStateMarkovian,input::Vector{Float64},
-    (conn_pre::Tuple{C,PS} where {C<:Connection,PS<:PopulationStateMarkovian})...;
+    (conn_pre::Tuple{C,PS} where {C<:Connection,PS<:AbstractPopulationState})...;
       nonlinearity::AbstractNonlinearity=NLRelu())
   connections = Tuple(getindex.(conn_pre,1))
-  typeassert.(connections,ConnectionExpKernel)
+  #typeassert.(connections,ConnectionExpKernel)
   pre_states = Tuple(getindex.(conn_pre,2))
   spike_proposals = fill(Inf,nneurons(state))
   return PopulationExpKernel(state,connections,pre_states,input,nonlinearity,spike_proposals) 
@@ -124,8 +124,7 @@ function PopulationExpKernel(state::PopulationStateMarkovian,conn::Connection,in
   return PopulationExpKernel(state,input,(conn,state);nonlinearity=nonlinearity)
 end
 
-function set_initial_rates!(pop::PopulationExpKernel,
-    rates::Union{Nothing,Vector{<:Real}})
+function set_initial_rates!(pop::PopulationExpKernel,rates::Union{Nothing,Vector{<:Real}})
   if !isnothing(rates)
     @assert nneurons(pop) == length(rates) "Dimensions wrong!"
     pop.state.traces[1].val .= rates
@@ -242,6 +241,8 @@ end
   wij_all = view(conn.weights,idx_post,:)
   return dot(wij_all,tra_tnow)
 end
+propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,
+  d::Connection,e::PopulationStateMarkovian) = propagated_signal(a,b,c,d,e)
 
 # if inhibitory, same as above ,but all weights are considered negative
 @inline function propagated_signal(t_now::Real,idx_post::Integer,
@@ -250,6 +251,8 @@ end
   wij_all = view(conn.weights,idx_post,:)
   return -dot(wij_all,tra_tnow)
 end
+propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
+  ::PopulationStateExpKernelInhibitory) = 0.0
 
 function trace_proposals(t_now::Real,idx_neu::Integer,
     ps::PopulationStateGlobalStabilization)
@@ -264,10 +267,11 @@ end
   tra_glo,tra_loc = trace_proposals(t_now,idx_post,ps_pre)
   return  -(ps_pre.Aglo*tra_glo + ps_pre.Aloc*tra_loc)
 end
+propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
+  ::PopulationStateGlobalStabilization) = 0.0
 
 
-function compute_rate(t_now::Real,external_input::Real,
-    pop::PopulationExpKernel, idxneu::Integer)
+function compute_rate(t_now::Real,external_input::Real,pop::PopulationExpKernel, idxneu::Integer)
   ret = external_input
   ps_post = pop.state
   for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
@@ -292,36 +296,19 @@ function compute_rates_upper!(r_alloc::Vector{Float64},t_now::Real,pop::Populati
   end
   return nothing
 end
-function compute_rate_upper(t_now::Real,external_input::Real,
-    pop::PopulationExpKernel, idxneu::Integer)
+function compute_rate_upper(t_now::Real,external_input::Real,pop::PopulationExpKernel, 
+    idxneu::Integer)
   ret = external_input
   ps_post = pop.state
   for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
-    ret += max(0.0,propagated_signal(t_now,idxneu,ps_post,conn,ps_pre))
+    ret += propagated_signal_upper(t_now,idxneu,ps_post,conn,ps_pre)
   end
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
-# function compute_next_spike(t_now::Real,pop::PopulationExpKernel,ineu::Integer;Tmax::Real=100.0)
-#   t_start = t_now
-#   t = t_now 
-#   ext_inp = pop.input[ineu]
-#   freq(t) = compute_rate(t,ext_inp,pop,ineu)
-#   while (t-t_start)<Tmax 
-#     (M::Float64) = freq(t)
-#     Δt =  -log(rand())/M # rand(Exponential())/M
-#     t = t+Δt
-#     u = rand()*M # random between 0 and M
-#     (u_up::Float64) = freq(t) 
-#     if u <= u_up
-#       return t
-#     end
-#   end
-#   return Tmax + t_start
-# end
-
-# Multivariate thinning algorith. From  Y. Chen, 2016
+# replaced by....
+# multivariate thinning algorith. From  Y. Chen, 2016
 function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.0)
   t_start = t_now
   t = t_now
@@ -422,9 +409,10 @@ function get_trains(rec::RecFullTrain{N};
   if Nneus == 0
     Nneus = maximum(spkneu)
   end
-  trains = map(1:Nneus) do neu
+  trains = Vector{Vector{Float64}}(undef,Nneus)
+  for neu in 1:Nneus
     _idx = findall(==(neu),spkneu)
-    return spkt[_idx]
+    trains[neu] = isempty(_idx) ? Float64[] : spkt[_idx]
   end
   return trains
 end

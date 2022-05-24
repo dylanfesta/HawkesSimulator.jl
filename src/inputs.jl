@@ -138,3 +138,33 @@ function burn_spike!(::Real,ps::PopulationState,::Integer)
   typeassert(ps.unittype,InputUnit)
   return nothing
 end
+
+
+
+########### 
+# 2022-05-24 -- I entirely forgot what I did before, so 
+# let's start again
+
+struct InputCurrentFun <: AbstractPopulationState
+  label::Symbol
+  n::Int64
+  f::Function # f(t::Float64,neu::Integer) -> Float64
+  f_upper::Function  # same signature
+  function InputCurrentFun(n::Integer,f::Function,f_upper::Function;
+      label::Union{Symbol,String}=rand_label())
+    return new(Symbol(label),n,f,f_upper)
+  end
+end
+
+reset!(::InputCurrentFun) = nothing
+
+@inline function propagated_signal(t_now::Real,idx_post::Integer,
+    ::Union{PopulationStateExpKernel,PopulationStateExpKernelInhibitory},
+    ::ConnectionVoid,in::InputCurrentFun)
+  return in.f(t_now,idx_post)
+end
+@inline function propagated_signal_upper(t_now::Real,idx_post::Integer,
+    ::Union{PopulationStateExpKernel,PopulationStateExpKernelInhibitory},
+    ::ConnectionVoid,in::InputCurrentFun)
+  return in.f_upper(t_now,idx_post)
+end

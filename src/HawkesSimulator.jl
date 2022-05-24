@@ -22,6 +22,7 @@ abstract type UnitType end
 abstract type Connection end
 abstract type PlasticityRule end
 struct NoPlasticity <: PlasticityRule end
+reset!(::NoPlasticity) = nothing
 
 struct ConnectionWeights{N,PL<:NTuple{N,PlasticityRule}} <: Connection
   weights::Matrix{Float64}
@@ -39,6 +40,15 @@ function reset!(conn::ConnectionWeights)
   reset!.(conn.plasticities)
   return nothing
 end
+
+# useful for the input
+struct ConnectionVoid <: Connection 
+  plasticities::Tuple{NoPlasticity}
+  function ConnectionVoid()
+    return new((NoPlasticity(),))
+  end
+end
+reset!(::ConnectionVoid) = nothing 
 
 abstract type AbstractNonlinearity end
 # this one is the default
