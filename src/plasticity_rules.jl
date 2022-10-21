@@ -209,10 +209,88 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   return nothing
 end
 
+# Symmetric STDP
+
+# Pairwise plasticity 
+struct SymmetricSTDP <: PlasticityRule
+  Aplus::Float64
+  Aminus::Float64
+  post_plus_trace::Trace
+  post_minus_trace::Trace
+  pre_plus_trace::Trace
+  pre_minus_trace::Trace
+  bounds::PlasticityBounds
+  function SymmetricSTDP(τplus,τminus,Aplus,Aminus,n_post,n_pre;
+       plasticity_bounds=PlasticityBoundsNonnegative())
+    post_plus_t = Trace(τplus,n_post)
+    post_minus_t = Trace(τminus,n_post)
+    pre_plus_t = Trace(τplus,n_pre)
+    pre_minus_t = Trace(τminus,n_pre)
+    new(Aplus,Aminus,post_plus_t,post_minus_t,
+     pre_plus_t,pre_minus_t,plasticity_bounds)
+  end
+end
+function reset!(pl::SymmetricSTDP)
+  reset!(pl.pre_plus_trace)
+  reset!(pl.pre_minus_trace)
+  reset!(pl.post_plus_trace)
+  reset!(pl.post_minus_trace)
+  return nothing
+end
+
+function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+    ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
+    plast::SymmetricSTDP)
+  if iszero(k_pre_spike) && iszero(k_post_spike)
+    return nothing
+  end
+  # update all pre and post traces to t_now
+  propagate!(t_spike,plast.pre_plus_trace)
+  propagate!(t_spike,plast.pre_minus_trace)
+  propagate!(t_spike,plast.post_plus_trace)
+  propagate!(t_spike,plast.post_minus_trace)
+  # increase the plasticity trace variables
+  if !iszero(k_post_spike)
+    update_now!(plast.post_plus_trace,k_post_spike)
+    update_now!(plast.post_minus_trace,k_post_spike)
+  end
+  if !iszero(k_pre_spike)
+    update_now!(plast.pre_plus_trace,k_post_spike)
+    update_now!(plast.pre_minus_trace,k_post_spike)
+  end
+  # update synapses
+  weights=conn.weights
+  npost,npre = size(weights)
+  if !iszero(k_pre_spike)
+    # k is presynaptic: go along rows of k_pre column 
+    for i in 1:npost
+      wik = weights[i,k_pre_spike] 
+      if wik > 0
+        Δw = ( plast.post_minus_trace.val[i]*plast.Aminus +
+               plast.post_plus_trace.val[i]*plast.Aplus) 
+        weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
+      end
+    end
+  end
+  if !iszero(k_post_spike)
+    # k is postsynaptic: go along columns of k_post row
+    for j in 1:npre
+      wkj = weights[k_post_spike,j] 
+      if wkj > 0
+        Δw = ( plast.pre_minus_trace.val[j]*plast.Aminus +
+               plast.pre_plus_trace.val[j]*plast.Aplus) 
+        weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
+      end
+    end
+  end
+  return nothing
+end
+
+
 
 # Inhibitory stabilization, Vogels-Sprekeler 2011
 
-# Warning : this formulation likely assumes all positive weights !
+# Warning : this formulation assumes all positive weights !
 
 struct PlasticityInhibitory <: PlasticityRule
   τ::Float64
@@ -273,4 +351,3 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   end
   return nothing
 end
-        

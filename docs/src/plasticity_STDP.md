@@ -162,8 +162,6 @@ end
 ###  Run numerical simulation for specific parameters
 
 ````@example plasticity_STDP
-# src
-
 const plast_eps = 1E-4
 const A2plus = 1.0 * plast_eps
 const τplus = 0.5
@@ -480,6 +478,70 @@ end
 
 
 plot(deltats_all,out;leg=false,xlabel="Delta t",ylabel="dw/dt",linewidth=3)
+````
+
+Pairing protocol with symmetric STDP rule
+
+I will do the same as above, but in a slightly different way.
+I will consider completely random $\Delta t$s values
+so every single update is different, and I can check all of them at the same time!
+BUT now I need to save the weights at each step. So I need to store weight at each event!
+(I can't use a weight recorder for that, because weight recorder is not event-based, but
+instead stores the weight according to its internal $\Delta t$)
+
+````@example plasticity_STDP
+function post_pre_spiketrains_morerandom(rate::R,Δt_boundary::R,Ntot::Iteger) where R
+  tstart = 1.5/rate
+  post = collect(range(tstart;length=Ntot,step=inv(rate)))
+  Δts  = rand(Uniform(-Δt_boundary,Δt_boundary),Ntot)
+  pre = post .+ Δts
+  return (Δts,[pre,post])
+end
+
+function post_pre_population_morerandom(rate::R,
+    Δt_boundary::R,Ntot::Integer,connection::H.Connection) where R
+  Δts,prepostspikes = post_pre_spiketrains_morerandom(rate,Δt_boundary,Ntot)
+  gen = H.SGTrains(prepostspikes)
+  state = H.PopulationState(H.InputUnit(gen),2)
+  return Δts, H.PopulationInputTestWeights(state,connection)
+end
+
+function test_stpd_symmetric_rule(rate::R,
+    Δt_boundary::R,Ntot::Integer,connection::H.Connection;
+    wstart=100.0) where R
+  num_spikes = Ntot - 2 # a bit less than total, for safety
+  Δts,population = post_pre_population_morerandom(rate,Δt_boundary,Ntot,connection)
+  network = H.RecurrentNetworkExpKernel(population,recorder)
+  wmat = connection.weights
+  ws = Vector{Float64}(undef,num_spikes)
+  fill!(wmat,wstart)
+  wmat[diagind(wmat)] .= 0.0
+  t_now = 0.0
+  H.reset!.((network,recorder,connection)) # clear spike trains etc
+  for k in 1:num_spikes
+    t_now = H.dynamics_step_singlepopulation!(t_now,network)
+    ws[k] = wmat[1,2]
+  end
+  return Δts , ws
+end
+
+
+connection_test = let wmat =  fill(100.0,2,2)
+  wmat[diagind(wmat)] .= 0.0
+  τplus = 10E-3
+  τminus = 30E-3
+  Aplus = 1E-1
+  Aminus = -0.3333E-1
+  npost,npre = size(wmat)
+  stdp_plasticity = H.SymmetricSTDP(τplus,τminus,Aplus,Aminus,npost,npre)
+  H.ConnectionWeights(wmat,stdp_plasticity)
+end
+
+myrate = 1.0
+mybound = 100E-3
+myNtest  = 1000
+
+deta_ts, testws = test_stpd_symmetric_rule(myrate,mybound,myNtest,connection_test)
 ````
 
 **THE END**
