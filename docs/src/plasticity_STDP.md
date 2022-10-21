@@ -490,11 +490,11 @@ BUT now I need to save the weights at each step. So I need to store weight at ea
 instead stores the weight according to its internal $\Delta t$)
 
 ````@example plasticity_STDP
-function post_pre_spiketrains_morerandom(rate::R,Δt_boundary::R,Ntot::Iteger) where R
+function post_pre_spiketrains_morerandom(rate::R,Δt_boundary::R,Ntot::Integer) where R
   tstart = 1.5/rate
   post = collect(range(tstart;length=Ntot,step=inv(rate)))
   Δts  = rand(Uniform(-Δt_boundary,Δt_boundary),Ntot)
-  pre = post .+ Δts
+  pre = sort!(post .+ Δts)
   return (Δts,[pre,post])
 end
 
@@ -509,39 +509,51 @@ end
 function test_stpd_symmetric_rule(rate::R,
     Δt_boundary::R,Ntot::Integer,connection::H.Connection;
     wstart=100.0) where R
-  num_spikes = Ntot - 2 # a bit less than total, for safety
+  num_spikes = 2*Ntot
   Δts,population = post_pre_population_morerandom(rate,Δt_boundary,Ntot,connection)
-  network = H.RecurrentNetworkExpKernel(population,recorder)
+  network = H.RecurrentNetworkExpKernel(population)
   wmat = connection.weights
   ws = Vector{Float64}(undef,num_spikes)
   fill!(wmat,wstart)
   wmat[diagind(wmat)] .= 0.0
   t_now = 0.0
-  H.reset!.((network,recorder,connection)) # clear spike trains etc
+  H.reset!.((network,connection)) # clear spike trains etc
   for k in 1:num_spikes
     t_now = H.dynamics_step_singlepopulation!(t_now,network)
+    println(k)
     ws[k] = wmat[1,2]
   end
-  return Δts , ws
+  Δws = diff(ws)[1:2:end]
+  return Δts , ws, Δws
 end
 
+
+myτplus = 10E-3
+myτminus = 30E-3
+myAplus = 1E-1
+myAminus = -0.5E-1
+
+function expected_symm_stdp(Δt::Real)
+  return myAplus*exp(-abs(Δt)/myτplus) + myAminus*exp(-abs(Δt)/myτminus)
+end
 
 connection_test = let wmat =  fill(100.0,2,2)
   wmat[diagind(wmat)] .= 0.0
-  τplus = 10E-3
-  τminus = 30E-3
-  Aplus = 1E-1
-  Aminus = -0.3333E-1
   npost,npre = size(wmat)
-  stdp_plasticity = H.SymmetricSTDP(τplus,τminus,Aplus,Aminus,npost,npre)
+  stdp_plasticity = H.SymmetricSTDP(myτplus,myτminus,myAplus,myAminus,npost,npre)
   H.ConnectionWeights(wmat,stdp_plasticity)
 end
 
-myrate = 1.0
-mybound = 100E-3
-myNtest  = 1000
-
-deta_ts, testws = test_stpd_symmetric_rule(myrate,mybound,myNtest,connection_test)
+theplot = let myrate = 0.1
+  mybound = 100E-3
+  myNtest  = 800
+  xplot = range(-mybound,mybound,length=150)
+  delta_ts,testws, testDws = test_stpd_symmetric_rule(myrate,mybound,myNtest,connection_test)
+  scatter(delta_ts,testDws, xlabel="Delta t",ylabel="dw/dt",
+    label="numeric", title="Symmetric STDP")
+  plot!(xplot, expected_symm_stdp.(xplot),linewidth=2,linestyle=:dash,color=:red,
+    label="analytic")
+end
 ````
 
 **THE END**
