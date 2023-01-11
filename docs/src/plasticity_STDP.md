@@ -520,7 +520,6 @@ function test_stpd_symmetric_rule(rate::R,
   H.reset!.((network,connection)) # clear spike trains etc
   for k in 1:num_spikes
     t_now = H.dynamics_step_singlepopulation!(t_now,network)
-    println(k)
     ws[k] = wmat[1,2]
   end
   Δws = diff(ws)[1:2:end]
