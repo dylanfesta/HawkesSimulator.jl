@@ -251,6 +251,10 @@ propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,
   wij_all = view(conn.weights,idx_post,:)
   return -dot(wij_all,tra_tnow)
 end
+propagated_signal_upper(::Real,::Integer,::PopulationStateMarkovian,::Connection,
+  ::PopulationStateExpKernelInhibitory) = 0.0
+
+# this one below is proably not needed
 propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
   ::PopulationStateExpKernelInhibitory) = 0.0
 
