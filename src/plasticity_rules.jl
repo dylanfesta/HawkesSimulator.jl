@@ -320,6 +320,8 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     return nothing
   end
   weights = conn.weights
+  npost,npre = size(weights)
+
   # update all pre and post traces to t_now
   propagate!.(t_spike,(plast.o,plast.r))
   # spike update, pre or post
@@ -334,7 +336,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for i_post in 1:npost
       wik = weights[i_post,k_pre_spike]
       if !iszero(wik)
-        Δw = plast.η*(plast.o[i_post]-plast.α)
+        Δw = plast.η*(plast.o.val[i_post]-plast.α)
         weights[i_post,k_pre_spike] = plast.bounds(wik,Δw)
       end
     end
@@ -344,7 +346,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for j_pre in 1:npre
       wkj = weights[k_post_spike,j_pre]
       if !iszero(wkj)
-        Δw = plast.η*plast.r[j_pre]
+        Δw = plast.η*plast.r.val[j_pre]
         weights[k_post_spike,j_pre] = plast.bounds(wkj,Δw)
       end
     end
