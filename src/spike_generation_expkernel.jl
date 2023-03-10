@@ -217,7 +217,7 @@ function burn_spike!(t_spike::Real,ps::PopulationStateMarkovian)
 end
 
 
-# trick to update the global plasticity
+# trick to update the global stabilization
 function plasticity_update!(t_spike::Real,label_spike::Symbol,
     neufire::Integer,ps_post::PopulationStateMarkovian,
     ::Connection,ps_pre::PopulationStateGlobalStabilization,
@@ -257,6 +257,17 @@ propagated_signal_upper(::Real,::Integer,::PopulationStateMarkovian,::Connection
 # this one below is proably not needed
 propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
   ::PopulationStateExpKernelInhibitory) = 0.0
+
+# when the connection is non-interacting, the propagated signal is ALWAYS zero
+@inline function propagated_signal(::Real,::Integer,
+    ::PopulationStateMarkovian,::ConnectionNonInteracting,::PopulationStateMarkovian)
+  return 1E-9
+end
+@inline function propagated_signal(::Real,::Integer,
+    ::PopulationStateMarkovian,::ConnectionNonInteracting,::PopulationStateExpKernelInhibitory)
+  return 1E-9
+end
+  
 
 function trace_proposals(t_now::Real,idx_neu::Integer,
     ps::PopulationStateGlobalStabilization)

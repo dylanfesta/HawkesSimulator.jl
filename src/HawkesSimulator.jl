@@ -41,6 +41,27 @@ function reset!(conn::ConnectionWeights)
   return nothing
 end
 
+# Neurons do not interact through this connection
+# Should be used to study plasticity of weights
+struct ConnectionNonInteracting{N,PL<:NTuple{N,PlasticityRule}} <: Connection
+  weights::Matrix{Float64}
+  plasticities::PL
+end
+function ConnectionNonInteracting(weights::Matrix{Float64})
+  plast = NTuple{0,NoPlasticity}()
+  return ConnectionNonInteracting(weights,plast)
+end
+function ConnectionNonInteracting(weights::Matrix{Float64},
+     (plasticity_rules::PL where PL<:PlasticityRule)...)
+  return ConnectionNonInteracting(weights,plasticity_rules)
+end
+function reset!(conn::ConnectionNonInteracting)
+  reset!.(conn.plasticities)
+  return nothing
+end
+
+
+
 # useful for the input
 struct ConnectionVoid <: Connection 
   plasticities::Tuple{NoPlasticity}

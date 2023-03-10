@@ -328,6 +328,7 @@ end
 function instantaneous_rates(trains::Vector{Vector{R}},dt::R,Tend::Real;
     neurons_idx::AbstractArray=Int64[],
     Tstart::Float64=0.0) where R
+  @assert Tend > Tstart+dt "Tend should be greater than Tstart"  
   binsc,counts = binned_spikecount(trains,dt,Tend;neurons_idx=neurons_idx,Tstart=Tstart)  
   return binsc, (counts./dt)
 end
