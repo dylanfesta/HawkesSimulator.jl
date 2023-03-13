@@ -248,6 +248,34 @@ function draw_spike_raster(trains::Vector{Vector{Float64}},
   return ret
 end
 
+#=
+Example of raster plot with Makie
+
+f = let f= Figure()
+  dt_rast=0.0005
+  Δt_rast = 0.50
+  Tstart_rast = 100.
+  Tend_rast = Tstart_rast + Δt_rast
+  rast_spk = 10
+  rast_sep = 3
+  theraster=H.draw_spike_raster(trains,dt_rast,Tend_rast;Tstart=Tstart_rast,
+  spike_size=rast_spk,spike_separator=rast_sep)
+  rast = permutedims(theraster)
+  neu_yvals  = let n_neu = n_default,
+    N = 2*n_neu*(rast_sep+rast_spk)+2*rast_sep+rast_spk
+    ret = collect(range(0,n_neu+1;length=N))
+    ret[rast_spk+1:end-rast_spk]
+  end
+  pxtimes,pxneus = size(rast)
+  times = range(0,Δt_rast,length=pxtimes)
+  ax1 = Axis(f[1, 1], aspect=pxtimes/pxneus,
+    rightspinevisible=false,topspinevisible=false,
+    xlabel="time (s)",ylabel="neuron #")
+  image!(ax1,times,neu_yvals,rast)
+  f
+end
+=#
+
 
 # do draw spikes on existing raster plot
 function add_to_spike_raster!(raster::Matrix,
