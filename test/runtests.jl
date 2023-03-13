@@ -235,24 +235,30 @@ end
   # like 2D test above, but for ExpKernel types
 
   nneus = 2
-  tauker = 0.5
-  trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
-  trace_useless = H.Trace(123.0,nneus,H.ForPlasticity())
+  τker = 0.443
 
-  popstate = H.PopulationStateExpKernel(nneus,trace_ker,trace_useless)
+  ps_e,trace_e = H.population_state_exp_and_trace(1,τker)
+  ps_i,trace_i = H.population_state_exp_and_trace_inhibitory(1,τker)
+
   myweights = [0.31 -0.3
               0.9  -0.15]
   myinputs = [5.0 , 5.0]
   rates_analytic  = inv(I-myweights)*myinputs
+  _do_mat(_w) = cat(abs(_w);dims=2)
+  connection_ee = H.ConnectionExpKernel(_do_mat(myweights[1,1]),trace_e)
+  connection_ie = H.ConnectionExpKernel(_do_mat(myweights[2,1]),trace_e)
+  connection_ei = H.ConnectionExpKernel(_do_mat(myweights[1,2]),trace_i)
+  connection_ii = H.ConnectionExpKernel(_do_mat(myweights[2,2]),trace_i)
 
-  connection = H.ConnectionExpKernel(myweights,trace_ker)
-  population = H.PopulationExpKernel(popstate,connection,myinputs)
+  pop_e = H.PopulationExpKernel(ps_e,myinputs[1:1] ,
+    (connection_ee,ps_e),(connection_ei,ps_i))
+  pop_i = H.PopulationExpKernel(ps_i,myinputs[2:2] ,
+    (connection_ie,ps_e),(connection_ii,ps_i))
 
   n_spikes = 10_000
-  recorder1 = H.RecFullTrain(n_spikes,1)
-  recorder2 = H.RecFullTrain(n_spikes,1)
-  network1 = H.RecurrentNetworkExpKernel(population,recorder1)
-  network2 = H.RecurrentNetworkExpKernel(population,recorder2)
+
+  recorder1 = H.RecFullTrain(n_spikes,2)
+  network1 = H.RecurrentNetworkExpKernel((pop_e,pop_i),(recorder1,))
 
   function simulate1!(network,num_spikes)
     t_now = 0.0
@@ -262,20 +268,10 @@ end
     end
     return t_now
   end
-  function simulate2!(network,num_spikes)
-    t_now = 0.0
-    H.reset!(network) # clear spike trains etc
-    for _ in 1:num_spikes
-      t_now = H.dynamics_step_singlepopulation!(t_now,network)
-    end
-    return t_now
-  end
   Tmax1 = simulate1!(network1,n_spikes)
-  Tmax2 = simulate2!(network2,n_spikes)
-  rates_ntw1 = H.numerical_rates(recorder1,nneus,Tmax1)
-  rates_ntw2 = H.numerical_rates(recorder2,nneus,Tmax2)
-  @test all(isapprox.(rates_analytic,rates_ntw1;rtol=0.2))
-  @test all(isapprox.(rates_analytic,rates_ntw2;rtol=0.2))
+  rate_e = H.numerical_rates(recorder1,nneus,Tmax1;pop_idx=1)[1]
+  rate_i = H.numerical_rates(recorder1,nneus,Tmax1;pop_idx=2)[1]
+  @test all(isapprox.(rates_analytic,[rate_e,rate_i];rtol=0.2))
 end
 
 @testset "Heterosynaptic plasticity initialization" begin
