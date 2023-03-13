@@ -144,6 +144,11 @@ function ConnectionExpKernel(weights::Matrix{Float64},pre_trace::Trace)
   _,npre = size(weights)
   @assert npre == nneurons(pre_trace)
   tra_prop = Vector{Float64}(undef,npre)
+  @assert(all(weights .>= 0.0), 
+  """
+    Weights must be positive! 
+    For inhibitory connections use PopulationStateExpKernelInhibitory
+  """)
   return ConnectionExpKernel(weights,pre_trace,tra_prop,plast)
 end
 function ConnectionExpKernel(weights::Matrix{Float64},pre_trace::Trace,
@@ -151,6 +156,11 @@ function ConnectionExpKernel(weights::Matrix{Float64},pre_trace::Trace,
   _,npre = size(weights)
   @assert npre == nneurons(pre_trace)
   tra_prop = Vector{Float64}(undef,npre)
+  @assert(all(weights .>= 0.0), 
+  """
+    Weights must be positive! 
+    For inhibitory connections use PopulationStateExpKernelInhibitory
+  """)
   return ConnectionExpKernel(weights,pre_trace,tra_prop,plasticity_rules)
 end
 function reset!(conn::ConnectionExpKernel)
