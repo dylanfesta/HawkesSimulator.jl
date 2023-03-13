@@ -553,6 +553,80 @@ theplot = let myrate = 0.1
   plot!(xplot, expected_symm_stdp.(xplot),linewidth=2,linestyle=:dash,color=:red,
     label="analytic")
 end
+
+# src
+````
+
+# Fancy generalized symmetric rule
+Here I show a more general symmetric rule that incorporates some
+bias terms that depend on pre and post firing rate.
+Some of the functions are re-used from above
+
+````@example plasticity_STDP
+A = -0.1;
+nothing #hide
+````
+
+time constants, use γ>1 for long tail with depression
+
+````@example plasticity_STDP
+τ = 10E-3
+γ = 3.0;
+nothing #hide
+````
+
+The bias on r_pre*r_post is A*(1+θ)
+Set to -1.0 for no bias, >-1.0 for negative bias, <-1 for positive bias
+
+````@example plasticity_STDP
+θ = -1.0;
+nothing #hide
+````
+
+This is the bias on r_pre
+
+````@example plasticity_STDP
+αpre = -1;
+nothing #hide
+````
+
+This is the bias on r_post
+
+````@example plasticity_STDP
+αpost = 3;
+
+function expected_symmX_stdp(Δt::Real)
+  myAplus = A/τ
+  myAminus =θ*A/(γ*τ)
+  myτplus = τ
+  myτminus = γ*τ
+  b =  Δt>0 ? αpost : αpre
+  return b + myAplus*exp(-abs(Δt)/myτplus) + myAminus*exp(-abs(Δt)/myτminus)
+end
+
+connection_testX = let wmat =  fill(100.0,2,2)
+  wmat[diagind(wmat)] .= 0.0
+  npost,npre = size(wmat)
+  _plasticity = H.PlasticitySymmetricSTDPX(A,θ,τ,γ,αpre,αpost,npost,npre)
+  H.ConnectionWeights(wmat,_plasticity)
+end
+
+theplot = let myrate = 0.05
+  mybound = 100E-3
+  myNtest  = 800
+  xplot = range(-mybound,mybound,length=150)
+  delta_ts,testws, testDws = test_stpd_symmetric_rule(myrate,mybound,myNtest,connection_testX)
+  scatter(delta_ts,testDws, xlabel="Delta t",ylabel="dw/dt",
+    label="numeric", title="Generalized Symmetric STDP")
+  plot!(xplot, expected_symmX_stdp.(xplot),linewidth=2,linestyle=:dash,color=:red,
+    label="analytic")
+end
+````
+
+How weird!
+
+````@example plasticity_STDP
+# src
 ````
 
 **THE END**
