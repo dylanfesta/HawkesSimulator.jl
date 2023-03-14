@@ -95,8 +95,8 @@ _ = simulate!(network,10;initial_e=r0e,initial_i=r0i)
 
 @benchmark t_end = simulate!($network,$n_spikes;initial_e=$r0e,initial_i=$r0i)
 # 20230314
-# 1 sample with 1 evaluation.
-# Single result which took 9.160 s (1.60% GC) to evaluate,
-# with a memory estimate of 1.98 GiB, over 72128614 allocations.
-
-##
+#BenchmarkTools.Trial: 8 samples with 1 evaluation.
+# Range (min … max):  613.305 ms … 742.192 ms  ┊ GC (min … max): 7.48% … 7.66%
+# Time  (median):     699.599 ms               ┊ GC (median):    7.89%
+# Time  (mean ± σ):   695.361 ms ±  40.329 ms  ┊ GC (mean ± σ):  7.75% ± 0.38%
+# Memory estimate: 763.78 MiB, allocs estimate: 17238690.

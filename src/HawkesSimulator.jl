@@ -217,16 +217,16 @@ abstract type TracePurpose end
 struct ForDynamics <: TracePurpose end
 struct ForPlasticity <: TracePurpose end
 
-struct Trace{P<:TracePurpose}
-  val::Vector{Float64}
-  τ::Float64
-  t_last::Ref{Float64}
+mutable struct Trace{P<:TracePurpose,R}
+  val::Vector{R}
+  τ::R
+  t_last::R
   purpose::P
   function Trace(τ::Real,n::Integer,
       (purpose::P)=ForPlasticity()) where {P<:TracePurpose}
     val = fill(0.0,n)
-    t_last = Ref(0.0)
-    return new{P}(val,τ,t_last,purpose)
+    t_last = 0.0
+    return new{P,Float64}(val,τ,t_last,purpose)
   end
 end
 
@@ -234,10 +234,10 @@ function nneurons(tra::Trace)
   return length(tra.val)
 end
 
-function propagate!(tnow::Float64,tra::Trace)
-  Δt = tnow - tra.t_last[]
+function propagate!(tnow::Float64,tra::Trace{P,Float64}) where P
+  Δt = tnow - tra.t_last
   tra.val .*= exp(-Δt/tra.τ)
-  tra.t_last[]=tnow
+  tra.t_last=tnow
   return nothing
 end
 # updates single element of trace, unless it is nothing
@@ -252,7 +252,7 @@ end
 function update_for_dynamics!(::Trace,::Int64)
   return nothing
 end
-function update_for_dynamics!(tra::Trace{ForDynamics},idx_update::Int64)
+function update_for_dynamics!(tra::Trace{ForDynamics,Float64},idx_update::Int64)
   tra.val[idx_update] += inv(tra.τ)
   return nothing
 end
@@ -260,24 +260,25 @@ end
 function propagate_for_dynamics!(::Float64,::Trace)
   return nothing
 end
-function propagate_for_dynamics!(tnow::Float64,tra::Trace{ForDynamics})
-  Δt = tnow - tra.t_last[]
+function propagate_for_dynamics!(tnow::Float64,tra::Trace{ForDynamics,Float64})
+  Δt = tnow - tra.t_last
   tra.val .*= exp(-Δt/tra.τ)
-  tra.t_last[]=tnow
+  tra.t_last=tnow
   return nothing
 end
 
 function reset!(tra::Trace)
-  fill!(tra.val,0.0) 
-  tra.t_last[]=0.0
+  fill!(tra.val,0.0)
+  tra.t_last=0.0
   return nothing
 end
 
 # proposal of future trace. Useful to compute quantities without advancing the trace
-function trace_proposal!(proposal::Vector{R},tnow::R,tra::Trace) where R
-  Δt = tnow - tra.t_last[]
-  @. proposal = tra.val * exp(-Δt/tra.τ)
-  return proposal
+function trace_proposal!(proposal::Vector{R},tnow::R,tra::Trace{P,R}) where {P,R}
+  Δt::R = tnow - tra.t_last
+  copy!(proposal,tra.val)
+  rmul!(proposal,exp(-Δt/tra.τ))
+  return nothing
 end
 
 

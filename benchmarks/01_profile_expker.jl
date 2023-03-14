@@ -70,7 +70,7 @@ population_e = H.PopulationExpKernel(pse,r0e,(conn_ei,psi),(conn_ee,pse);
 population_i = H.PopulationExpKernel(psi,r0i,(conn_ii,psi),(conn_ie,pse);
   nonlinearity=H.NLRmax(300.))
 
-n_spikes = 1_000
+n_spikes = 5_000
 recorder = H.RecFullTrain(n_spikes+1,2)
 network = H.RecurrentNetworkExpKernel((population_e,population_i),(recorder,))
 
@@ -94,3 +94,8 @@ _ = simulate!(network,10;initial_e=r0e,initial_i=r0i)
 @profview t_end = simulate!(network,n_spikes;initial_e=r0e,initial_i=r0i)
 
 ##
+# using Cthulhu 
+# t_end = simulate!(network,n_spikes;initial_e=r0e,initial_i=r0i)
+
+
+# @descend H.trace_proposal!(t_end+0.001,conn_ee)

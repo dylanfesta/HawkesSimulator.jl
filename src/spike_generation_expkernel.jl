@@ -133,9 +133,9 @@ function set_initial_rates!(pop::PopulationExpKernel,rates::Union{Nothing,Vector
 end
 
 
-struct ConnectionExpKernel{N,PL<:NTuple{N,PlasticityRule}} <: Connection
+struct ConnectionExpKernel{N,PL<:NTuple{N,PlasticityRule},T} <: Connection
   weights::Matrix{Float64}
-  pre_trace::Trace
+  pre_trace::T
   trace_proposal::Vector{Float64}
   plasticities::PL
 end
@@ -171,7 +171,8 @@ function reset!(conn::ConnectionExpKernel)
 end
 
 @inline function trace_proposal!(t_now::Real,conn::ConnectionExpKernel)
-  return trace_proposal!(conn.trace_proposal,t_now,conn.pre_trace)
+  trace_proposal!(conn.trace_proposal,t_now,conn.pre_trace)::Nothing
+  return conn.trace_proposal::Vector{Float64}
 end
 
 
