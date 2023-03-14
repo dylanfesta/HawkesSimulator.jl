@@ -210,7 +210,7 @@ end
 # as soon as the spike is produced. The update is normed
 # so that the integral of kernel is one
 
-# trace for plasticity : ignored by the dynamcs, 
+# trace for plasticity : ignored by the dynamics, 
 # plasticity rules should take care of it.
 
 abstract type TracePurpose end

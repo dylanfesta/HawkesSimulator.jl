@@ -9,6 +9,9 @@ using FFTW
 using Random
 Random.seed!(0)
 
+using Pkg
+pkg"activate ."
+
 using  HawkesSimulator; const global H = HawkesSimulator
 
 function plotvs(x::AbstractArray{<:Real},y::AbstractArray{<:Real})
