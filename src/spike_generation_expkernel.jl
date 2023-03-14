@@ -297,13 +297,15 @@ propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
   ::PopulationStateGlobalStabilization) = 0.0
 
 
-function compute_rate(t_now::Real,external_input::Real,pop::PopulationExpKernel, idxneu::Integer)
+function compute_rate(t_now::Float64,external_input::Float64,
+    pop::PopulationExpKernel, idxneu::Integer)::Float64
   ret = external_input
   ps_post = pop.state
   for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
     ret += propagated_signal(t_now,idxneu,ps_post,conn,ps_pre)
   end
-  return apply_nonlinearity(ret,pop.nonlinearity)
+  ret::Float64 = apply_nonlinearity(ret,pop.nonlinearity)
+  return ret
 end
 function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
   inputs = pop.input
