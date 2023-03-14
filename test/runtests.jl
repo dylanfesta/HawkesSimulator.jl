@@ -228,7 +228,8 @@ end
   tauker = 12.34E-2
   trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
   H.update_for_dynamics!(trace_ker,1)
-  get_trace(t) = H.trace_proposal!([NaN,],t,trace_ker)[1]
+
+  get_trace(t) = (tr=[NaN,]; H.trace_proposal!(tr,t,trace_ker);tr[1])
   _area = quadgk(get_trace,0,2.0)[1]
   @test isapprox(_area,1.0;atol=1E-5)
 
