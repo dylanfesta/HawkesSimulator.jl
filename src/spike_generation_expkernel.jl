@@ -301,10 +301,14 @@ function compute_rate(t_now::Float64,external_input::Float64,
     pop::PopulationExpKernel, idxneu::Integer)::Float64
   ret = external_input
   ps_post = pop.state
-  for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
-    ret += propagated_signal(t_now,idxneu,ps_post,conn,ps_pre)
+  nc = length(pop.connections)
+  for i in 1:nc
+    ret += propagated_signal(t_now,idxneu,ps_post,pop.connections[i] ,pop.pre_states[i])
   end
-  ret::Float64 = apply_nonlinearity(ret,pop.nonlinearity)
+  # for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
+  #   ret += propagated_signal(t_now,idxneu,ps_post,conn,ps_pre)
+  # end
+  ret = apply_nonlinearity(ret,pop.nonlinearity)
   return ret
 end
 function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
@@ -328,8 +332,10 @@ function compute_rate_upper(t_now::Real,external_input::Real,pop::PopulationExpK
     idxneu::Integer)
   ret = external_input
   ps_post = pop.state
-  for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
-    ret += propagated_signal_upper(t_now,idxneu,ps_post,conn,ps_pre)
+  nc = length(pop.connections)
+  for i in 1:nc
+    ret += propagated_signal_upper(t_now,idxneu,ps_post,
+      pop.connections[i],pop.pre_states[i])
   end
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
