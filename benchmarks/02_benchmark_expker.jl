@@ -94,9 +94,10 @@ _ = simulate!(network,10;initial_e=r0e,initial_i=r0i)
 
 
 @benchmark t_end = simulate!($network,$n_spikes;initial_e=$r0e,initial_i=$r0i)
-# 20230314
+# 20230315 (plastic)
 #BenchmarkTools.Trial: 8 samples with 1 evaluation.
-# Range (min … max):  613.305 ms … 742.192 ms  ┊ GC (min … max): 7.48% … 7.66%
-# Time  (median):     699.599 ms               ┊ GC (median):    7.89%
-# Time  (mean ± σ):   695.361 ms ±  40.329 ms  ┊ GC (mean ± σ):  7.75% ± 0.38%
-# Memory estimate: 763.78 MiB, allocs estimate: 17238690.
+# Range (min … max):  601.469 ms … 741.320 ms  ┊ GC (min … max): 10.78% … 10.69%
+# Time  (median):     646.137 ms               ┊ GC (median):    10.80%
+# Time  (mean ± σ):   653.585 ms ±  44.753 ms  ┊ GC (mean ± σ):  10.63% ±  0.70%
+
+# Memory estimate: 505.65 MiB, allocs estimate: 10786010.

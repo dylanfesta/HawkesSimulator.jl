@@ -94,8 +94,9 @@ _ = simulate!(network,10;initial_e=r0e,initial_i=r0i)
 @profview t_end = simulate!(network,n_spikes;initial_e=r0e,initial_i=r0i)
 
 ##
-# using Cthulhu 
-# t_end = simulate!(network,n_spikes;initial_e=r0e,initial_i=r0i)
+#=
+using Cthulhu 
+t_end = simulate!(network,n_spikes;initial_e=r0e,initial_i=r0i)
 
-
+=#
 # @descend H.trace_proposal!(t_end+0.001,conn_ee)
