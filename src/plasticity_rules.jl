@@ -80,19 +80,19 @@ plasticity_update!(::Real,::Integer,::Integer,::AbstractPopulationState,::Connec
 struct PairSTDP <: PlasticityRule
   Aplus::Float64
   Aminus::Float64
-  post_trace::Trace
-  pre_trace::Trace
+  traceplus::Trace
+  traceminus::Trace
   bounds::PlasticityBounds
   function PairSTDP(τplus,τminus,Aplus,Aminus,n_post,n_pre;
        plasticity_bounds=PlasticityBoundsNonnegative())
-    post_trace = Trace(τminus,n_post)
-    pre_trace = Trace(τplus,n_pre)
-    new(Aplus,Aminus,post_trace,pre_trace,plasticity_bounds)
+    traceplus = Trace(τplus,n_pre) # (r) add on post firing based on pre trace
+    traceminus = Trace(τminus,n_post) # (o) subtract on pre firing based on post trace 
+    new(Aplus,Aminus,traceplus,traceminus,plasticity_bounds)
   end
 end
 function reset!(pl::PairSTDP)
-  reset!(pl.pre_trace)
-  reset!(pl.post_trace)
+  reset!(pl.traceplus)
+  reset!(pl.traceminus)
   return nothing
 end
 
@@ -104,17 +104,17 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   weights = conn.weights
   npost,npre = size(weights)
   # update all pre and post traces to t_now
-  propagate!(t_spike,plast.pre_trace)
-  propagate!(t_spike,plast.post_trace)
+  propagate!(t_spike,plast.traceplus)
+  propagate!(t_spike,plast.traceminus)
   # update the plasticity trace variables, if needed
-  update_now!(plast.pre_trace,k_pre_spike)
-  update_now!(plast.post_trace,k_post_spike)
+  update_now!(plast.traceplus,k_pre_spike)
+  update_now!(plast.traceminus,k_post_spike)
   if !iszero(k_pre_spike)
     # k is presynaptic: go along rows of k_pre column 
     for i in 1:npost
       wik = weights[i,k_pre_spike] 
       if wik > 0
-        Δw = plast.post_trace.val[i]*plast.Aminus
+        Δw = plast.traceminus.val[i]*plast.Aminus
         weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
       end
     end
@@ -124,7 +124,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for j in 1:npre
       wkj = weights[k_post_spike,j] 
       if wkj > 0
-        Δw = plast.pre_trace.val[j]*plast.Aplus
+        Δw = plast.traceplus.val[j]*plast.Aplus
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
       end
     end
