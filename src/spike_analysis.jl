@@ -303,7 +303,7 @@ end
 
 #### this is the part which involves reader objects
 
-function get_spiketimes_spikeneurons(rec::RecFullTrain,
+function get_spiketimes_spikeneurons(rec::Union{RecFullTrain,RecFullTrainContent},
     (pop_idx::Integer)=1)
   spiketimes,spikeneurons = rec.timesneurons[pop_idx]
   spkt = filter(isfinite,spiketimes)
@@ -318,14 +318,15 @@ function spiketn_to_trains(spiketimes::Vector{<:Real},
   end
   return trains
 end
-function get_trains(rec::RecFullTrain,Nneus::Integer,
+function get_trains(rec::Union{RecFullTrain,RecFullTrainContent},Nneus::Integer,
     (pop_idx::Integer)=1)
   spiketn = get_spiketimes_spikeneurons(rec,pop_idx)
   return spiketn_to_trains(spiketn...,Nneus)
 end
 
-function numerical_rates(rec::RecFullTrain,Nneus::Integer,Tend::Real;
-  pop_idx::Integer=1,Tstart::Real=0.0)
+function numerical_rates(rec::Union{RecFullTrain,RecFullTrainContent},Nneus::Integer,Tend::Real;
+    pop_idx::Integer=1,Tstart::Real=0.0)
+  @assert Tstart < Tend "Tstart must be smaller than Tend, got $Tstart and $Tend instead"  
   trains = get_trains(rec,Nneus,pop_idx)  
   return numerical_rate.(trains;Tstart=Tstart,Tend=Tend)
 end

@@ -402,16 +402,18 @@ end
 struct RecFullTrainContent
   timesneurons::NTuple{N,Tuple{Vector{Float64},Vector{Int64}}} where N
   function RecFullTrainContent(r::RecFullTrain)
-    ret = Any[]
-    for (p,tneus) in enumerate(r.timesneurons )
-      k = r.k_rec[p]
-      times = tneus[1][k]
-      neurons = tneus[2][k]
-      push!(ret,(times,neurons))
+    npops = length(r.timesneurons)
+    for p in 1:npops
+      _times = r.timesneurons[p][1]
+      _neus = r.timesneurons[p][2]
+      idx_keep = isfinite.(_times)
+      keepat!(_times,idx_keep)
+      keepat!(_neus,idx_keep)
     end
-    new(Tuple(ret...))
+    new(r.timesneurons)
   end
 end
+
 function get_content(rec::RecFullTrain)
   return RecFullTrainContent(rec)
 end
