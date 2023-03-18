@@ -324,6 +324,14 @@ function get_trains(rec::Union{RecFullTrain,RecFullTrainContent},Nneus::Integer,
   return spiketn_to_trains(spiketn...,Nneus)
 end
 
+"""
+  numerical_rates(spikes_recorder,Nneus,Tend;pop_idx=1,Tstart=0.0)
+
+  Returns the numerical rates of the neurons in the population `pop_idx` 
+  that has been recorded through `spikes_recorder` (a `RecFullTrain` or a 
+  `RecFullTrainContent` object). The rates are computed in the time interval 
+  `[Tstart,Tend]` and are returned as a vector of length `Nneus`.
+"""
 function numerical_rates(rec::Union{RecFullTrain,RecFullTrainContent},Nneus::Integer,Tend::Real;
     pop_idx::Integer=1,Tstart::Real=0.0)
   @assert Tstart < Tend "Tstart must be smaller than Tend, got $Tstart and $Tend instead"  
