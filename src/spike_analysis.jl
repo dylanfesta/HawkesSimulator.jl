@@ -18,7 +18,7 @@ function numerical_rate(train::Vector{Float64};
     Tend = train[end]
   end
   Δt = Tend - Tstart
-  return length(train)/Δt
+  return count(>=(Tstart),train)/Δt
 end
 
 ##########################
