@@ -418,7 +418,9 @@ function get_content(rec::RecFullTrain)
   return RecFullTrainContent(rec)
 end
 
-function numerical_rates(rec::RecFullTrain{N}) where N
+
+function numerical_rates(rec::Union{RecFullTrain,RecFullTrainContent})
+  @warn "This might be the wrong function!"
   rates = Vector{Float64}[]
   for p in 1:N
     (spkt,spkneu) = rec.timesneurons[p]
@@ -438,7 +440,15 @@ function numerical_rates(rec::RecFullTrain{N}) where N
   return rates
 end
 
-function get_trains(rec::RecFullTrain{N}; 
+"""
+  function get_trains(rec::RecFullTrain{N}; 
+      Nneus::Integer = 0,
+      pop_idx::Integer = 1) where N
+
+Read full recorded train from the population selected 
+by `pop_idx` (default 1).
+"""
+function get_trains(rec::Union{RecFullTrain,RecFullTrainContent}; 
     Nneus::Integer = 0,
     pop_idx::Integer = 1) where N
   (spkt,spkneu) = rec.timesneurons[pop_idx]
