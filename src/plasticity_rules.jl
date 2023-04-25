@@ -132,6 +132,15 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   return nothing
 end
 
+## visualize STDP curve
+function get_stdp_curve(stdp::PairSTDP,times::AbstractVector{Float64})
+  τplus = stdp.traceplus.τ
+  τminus = stdp.traceminus.τ
+  stdpfun(t) = ifelse(t >= 0,stdp.Aplus*exp(-t/τplus) , stdp.Aminus*exp(t/τminus))
+  return map(stdpfun,times)
+end
+
+
 ### Triplets rule
 # WARNING : for standard case, A2minus and A3 minus parameters should be NEGATIVE
 struct PlasticityTriplets <: PlasticityRule
@@ -286,6 +295,13 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   return nothing
 end
 
+## visualize STDP curve
+function get_stdp_curve(stdp::SymmetricSTDP,times::AbstractVector{Float64})
+  τplus = stdp.traceplus.τ
+  τminus = stdp.traceminus.τ
+  stdpfun(t) =  stdp.Aplus*exp(-abs(t)/τplus) + stdp.Aminus*exp(-abs(t)/τminus)
+  return map(stdpfun,times)
+end
 
 
 # Inhibitory stabilization, Vogels-Sprekeler 2011
