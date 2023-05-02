@@ -443,3 +443,190 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   end
   return nothing
 end
+
+
+
+# Generalized STDP, asymmetric (classical STDP Hebbian shape)
+struct PlasticityAsymmetricX <: PlasticityRule
+  A::Float64  # scaling
+  θ::Float64  # bias term  (total bias is 1+θ)
+  τ::Float64  # time constant 
+  γ::Float64  # time constant minus scaling
+  αpre::Float64 # presynaptic firing bias
+  αpost::Float64 # postsynaptic firing bias
+  Aplus::Float64 # A/τ  normalized "potentiation"
+  Aminus::Float64 # θ*A/(γ*τ) normalized "depression"
+  post_plus_trace::Trace
+  post_minus_trace::Trace
+  pre_plus_trace::Trace
+  pre_minus_trace::Trace
+  bounds::PlasticityBounds
+  function PlasticityAsymmetricX(A,θ,τ,γ,
+      αpre,αpost,n_post,n_pre;
+      plasticity_bounds=PlasticityBoundsNonnegative())
+    post_plus_t = Trace(τ,n_post)
+    post_minus_t = Trace(τ*γ,n_post)
+    pre_plus_t = Trace(τ,n_pre)
+    pre_minus_t = Trace(τ*γ,n_pre)
+    Aplus = A/τ
+    Aminus = θ*A/(γ*τ)
+    @assert γ>0 "Something wrong with parameter γ, should be >0"
+    new(A,θ,τ,γ,αpre,αpost,
+      Aplus,Aminus,
+      post_plus_t,post_minus_t,
+      pre_plus_t,pre_minus_t,plasticity_bounds)
+  end
+end
+function reset!(pl::PlasticityAsymmetricX)
+  reset!(pl.pre_plus_trace)
+  reset!(pl.pre_minus_trace)
+  reset!(pl.post_plus_trace)
+  reset!(pl.post_minus_trace)
+  return nothing
+end
+
+
+function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+    ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
+    plast::PlasticityAsymmetricX)
+  if iszero(k_pre_spike) && iszero(k_post_spike)
+    return nothing
+  end
+  # update all pre and post traces to t_now
+  propagate!(t_spike,plast.pre_plus_trace)
+  propagate!(t_spike,plast.pre_minus_trace)
+  propagate!(t_spike,plast.post_plus_trace)
+  propagate!(t_spike,plast.post_minus_trace)
+  # increase the plasticity trace variables
+  if !iszero(k_post_spike)
+    update_now!(plast.post_plus_trace,k_post_spike)
+    update_now!(plast.post_minus_trace,k_post_spike)
+  end
+  if !iszero(k_pre_spike)
+    update_now!(plast.pre_plus_trace,k_post_spike)
+    update_now!(plast.pre_minus_trace,k_post_spike)
+  end
+  # update synapses
+  weights=conn.weights
+  npost,npre = size(weights)
+  if !iszero(k_pre_spike)
+    # k is presynaptic: go along rows of k_pre column 
+    for i in 1:npost
+      wik = weights[i,k_pre_spike] 
+      if wik > 0
+        Δw = ( plast.post_minus_trace.val[i]*plast.Aminus
+               + plast.αpre) # add presynaptic firing bias
+        weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
+      end
+    end
+  end
+  if !iszero(k_post_spike)
+    # k is postsynaptic: go along columns of k_post row
+    for j in 1:npre
+      wkj = weights[k_post_spike,j] 
+      if wkj > 0
+        Δw = ( plast.pre_plus_trace.val[j]*plast.Aplus
+               + plast.αpost ) # add postsynaptic firing bias
+        weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
+      end
+    end
+  end
+  return nothing
+end
+
+#=
+struct PlasticityAsymmetricAdaptiveX <: PlasticityRule
+  A::Float64  # overall scaling
+  θ::Float64  # bias term  (total bias is 1+θ)
+  τ::Float64  # time constant 
+  γ::Float64  # scaling of post-pre time constant
+  τadapt::Float64 # adaptation time constant (should be high) 
+  αpre::Float64 # postsynaptic firing bias
+  αadapt::Float64 # mismatch between target rate and presynaptic rate
+  Aplus::Float64 # A/τ  normalized "potentiation"
+  Aminus::Float64 # θ*A/(γ*τ) normalized "depression"
+  pre_plus_trace::Trace
+  pre_minus_trace::Trace
+  post_plus_trace::Trace
+  post_minus_trace::Trace
+  adaptive_trace::Trace
+  bounds::PlasticityBounds
+  function PlasticityAsymmetricAdaptiveX(A,θ,τ,γ,τadapt,
+      αpre,αadapt,n_post,n_pre;
+      plasticity_bounds=PlasticityBoundsNonnegative())
+    pre_plus_tr = Trace(τ,n_pre)
+    pre_minus_tr = Trace(τ*γ,n_pre)
+    post_plus_tr = Trace(τ,n_post)
+    post_minus_tr = Trace(τ*γ,n_post)
+    adapt_pre_tr = Trace(τadapt,n_pre)
+    Aplus = A/τ
+    Aminus = θ*A/(γ*τ)
+    @assert γ>0 "Something wrong with parameter γ, should be >0"
+    new(A,θ,τ,γ,γadapt,αpre,αadapt, 
+        Aplus,Aminus,
+        pre_plus_tr,pre_minus_tr,post_plus_tr,post_minus_tr,adapt_pre_tr,plasticity_bounds)
+  end
+end
+
+
+
+function reset!(pl::PlasticityAsymmetricAdaptiveX)
+  reset!(pl.pre_plus_trace)
+  reset!(pl.pre_minus_trace)
+  reset!(pl.post_plus_trace)
+  reset!(pl.post_minus_trace)
+  reset!(pl.adaptive_trace)
+  return nothing
+end
+
+function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+    ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
+    plast::PlasticityAsymmetricAdaptiveX)
+  if iszero(k_pre_spike) && iszero(k_post_spike)
+    return nothing
+  end
+  # update all pre and post traces to t_now
+  propagate!(t_spike,plast.pre_plus_trace)
+  propagate!(t_spike,plast.pre_minus_trace)
+  propagate!(t_spike,plast.post_plus_trace)
+  propagate!(t_spike,plast.post_minus_trace)
+  propagate!(t_spike,plast.adaptive_trace)
+  # increase the plasticity trace variables
+  if !iszero(k_post_spike)
+    update_now!(plast.post_plus_trace,k_post_spike)
+    update_now!(plast.post_minus_trace,k_post_spike)
+  end
+  if !iszero(k_pre_spike)
+    update_now!(plast.pre_plus_trace,k_post_spike)
+    update_now!(plast.pre_minus_trace,k_post_spike)
+    # adaptation 
+  end
+  # update synapses
+  weights=conn.weights
+  npost,npre = size(weights)
+  if !iszero(k_pre_spike)
+    # k is presynaptic: go along rows of k_pre column 
+    for i in 1:npost
+      wik = weights[i,k_pre_spike] 
+      if wik > 0
+        Δw = ( plast.post_minus_trace.val[i]*plast.Aminus
+               + plast.αpre) # add presynaptic firing bias
+        weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
+      end
+    end
+  end
+  if !iszero(k_post_spike)
+    # k is postsynaptic: go along columns of k_post row
+    for j in 1:npre
+      wkj = weights[k_post_spike,j] 
+      if wkj > 0
+        Δw = ( plast.pre_plus_trace.val[j]*plast.Aplus
+               + plast.αpost ) # add postsynaptic firing bias
+        weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
+      end
+    end
+  end
+  return nothing
+end
+
+=#
