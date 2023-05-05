@@ -372,7 +372,7 @@ end
 
 # Generalized STDP, symmetric
 struct PlasticitySymmetricSTDPX <: PlasticityRule
-  A::Float64  # scaling
+  A::Float64  # global scaling
   θ::Float64  # bias term  (total bias is 1+θ)
   τ::Float64  # time constant 
   γ::Float64  # time constant minus scaling
@@ -438,9 +438,9 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for i in 1:npost
       wik = weights[i,k_pre_spike] 
       if wik > 0
-        Δw = (  plast.post_plus_trace.val[i]*plast.Aplus +
+        Δw = (  plast.A*plast.αpre + # add presynaptic firing bias
+                plast.post_plus_trace.val[i]*plast.Aplus +
                 plast.post_minus_trace.val[i]*plast.Aminus)
-        Δw += plast.αpre # add presynaptic firing bias
         weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
       end
     end
@@ -450,16 +450,15 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for j in 1:npre
       wkj = weights[k_post_spike,j] 
       if wkj > 0
-        Δw = ( plast.pre_minus_trace.val[j]*plast.Aminus +
+        Δw = ( plast.A*plast.αpost + 
+               plast.pre_minus_trace.val[j]*plast.Aminus +
                plast.pre_plus_trace.val[j]*plast.Aplus) 
-        Δw += plast.αpost # add postsynaptic firing bias
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
       end
     end
   end
   return nothing
 end
-
 
 
 # Generalized STDP, asymmetric (classical STDP Hebbian shape)
@@ -531,7 +530,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
       wik = weights[i,k_pre_spike] 
       if wik > 0
         Δw = ( plast.post_minus_trace.val[i]*plast.Aminus
-               + plast.αpre) # add presynaptic firing bias
+               + plast.A*plast.αpre) # add presynaptic firing bias
         weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
       end
     end
@@ -542,7 +541,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
       wkj = weights[k_post_spike,j] 
       if wkj > 0
         Δw = ( plast.pre_plus_trace.val[j]*plast.Aplus
-               + plast.αpost ) # add postsynaptic firing bias
+               + plast.A*plast.αpost ) # add postsynaptic firing bias
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
       end
     end
