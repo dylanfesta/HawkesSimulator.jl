@@ -175,6 +175,11 @@ end
   return conn.trace_proposal::Vector{Float64}
 end
 
+# if connection admits no inteaction, returns a vector of zeros
+@inline function trace_proposal!(::Real,conn::ConnectionNonInteracting)
+  npre = size(conn.weights,2)
+  return zeros(npre) 
+end
 
 struct RecurrentNetworkExpKernel{N,TP<:NTuple{N,AbstractPopulation},NR,TR<:NTuple{NR,Recorder}}
   populations::TP
@@ -420,7 +425,7 @@ end
 
 
 function numerical_rates(rec::Union{RecFullTrain,RecFullTrainContent})
-  @warn "This might be the wrong function!"
+  @error "This might be the wrong function!"
   rates = Vector{Float64}[]
   for p in 1:N
     (spkt,spkneu) = rec.timesneurons[p]
@@ -450,7 +455,7 @@ by `pop_idx` (default 1).
 """
 function get_trains(rec::Union{RecFullTrain,RecFullTrainContent}; 
     Nneus::Integer = 0,
-    pop_idx::Integer = 1) where N
+    pop_idx::Integer = 1)
   (spkt,spkneu) = rec.timesneurons[pop_idx]
   if Nneus == 0
     Nneus = maximum(spkneu)
