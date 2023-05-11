@@ -76,8 +76,8 @@ abstract type AbstractNonlinearity end
 struct NLRelu <: AbstractNonlinearity end
 
 # between 0 and rmax
-struct NLRmax <: AbstractNonlinearity
-  rmax::Float64
+struct NLRmax{R<:Real} <: AbstractNonlinearity
+  rmax::R
 end
 
 

@@ -308,11 +308,8 @@ function compute_rate(t_now::Float64,external_input::Float64,
   ps_post = pop.state
   nc = length(pop.connections)
   for i in 1:nc
-    ret += propagated_signal(t_now,idxneu,ps_post,pop.connections[i] ,pop.pre_states[i])
+    ret += propagated_signal(t_now,idxneu,ps_post,pop.connections[i] ,pop.pre_states[i])::Float64
   end
-  # for (conn,ps_pre) in zip(pop.connections,pop.pre_states)
-  #   ret += propagated_signal(t_now,idxneu,ps_post,conn,ps_pre)
-  # end
   ret = apply_nonlinearity(ret,pop.nonlinearity)
   return ret
 end

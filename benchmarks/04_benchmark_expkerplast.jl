@@ -58,8 +58,8 @@ plasticity = let τ=400E-3,
   γ=3.0,
   A = 1E-9,
   θ = -1,
-  αpre = 0.1*A,
-  αpost = 0.2*A
+  αpre = 0.1,
+  αpost = 0.2
   H.PlasticitySymmetricSTDPX(A,θ,τ,γ,
     αpre,αpost,ne,ne)
 end
@@ -115,3 +115,17 @@ _ = simulate!(network,10;initial_e=r0e,initial_i=r0i)
 # Memory estimate: 1.28 GiB, allocs estimate: 21919655.
 
 # (plasticity is nearly negligible here! So no need to optimize it!)
+
+# later it got worse :-( 
+
+# 20230511
+
+
+
+
+########################
+## Profiling
+########################
+
+@profview t_end = simulate!(network,n_spikes;initial_e=r0e,initial_i=r0i)
+

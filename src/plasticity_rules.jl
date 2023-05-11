@@ -371,19 +371,19 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
 end
 
 # Generalized STDP, symmetric
-struct PlasticitySymmetricSTDPX <: PlasticityRule
-  A::Float64  # global scaling
-  θ::Float64  # bias term  (total bias is 1+θ)
-  τ::Float64  # time constant 
-  γ::Float64  # time constant minus scaling
-  αpre::Float64 # presynaptic firing bias
-  αpost::Float64 # postsynaptic firing bias
-  Aplus::Float64 # A/τ  normalized "potentiation"
-  Aminus::Float64 # θ*A/(γ*τ) normalized "depression"
-  post_plus_trace::Trace
-  post_minus_trace::Trace
-  pre_plus_trace::Trace
-  pre_minus_trace::Trace
+struct PlasticitySymmetricSTDPX{R} <: PlasticityRule
+  A::R      # global scaling
+  θ::R      # bias term  (total bias is 1+θ)
+  τ::R      # time constant 
+  γ::R      # time constant minus scaling
+  αpre::R   # presynaptic firing bias
+  αpost::R  # postsynaptic firing bias
+  Aplus::R  # A/τ  normalized "potentiation"
+  Aminus::R # θ*A/(γ*τ) normalized "depression"
+  post_plus_trace::Trace{ForPlasticity,R}
+  post_minus_trace::Trace{ForPlasticity,R}
+  pre_plus_trace::Trace{ForPlasticity,R}
+  pre_minus_trace::Trace{ForPlasticity,R}
   bounds::PlasticityBounds
   function PlasticitySymmetricSTDPX(A,θ,τ,γ,
       αpre,αpost,n_post,n_pre;
@@ -395,7 +395,7 @@ struct PlasticitySymmetricSTDPX <: PlasticityRule
     Aplus = A/τ
     Aminus = θ*A/(γ*τ)
     @assert γ>0 "Something wrong with parameter γ, should be >0"
-    new(A,θ,τ,γ,αpre,αpost,
+    new{Float64}(A,θ,τ,γ,αpre,αpost,
       Aplus,Aminus,
       post_plus_t,post_minus_t,
       pre_plus_t,pre_minus_t,plasticity_bounds)
@@ -412,7 +412,7 @@ end
 
 function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
-    plast::PlasticitySymmetricSTDPX)
+    plast::PlasticitySymmetricSTDPX{R}) where R<:Real
   if iszero(k_pre_spike) && iszero(k_post_spike)
     return nothing
   end
@@ -437,7 +437,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is presynaptic: go along rows of k_pre column 
     for i in 1:npost
       wik = weights[i,k_pre_spike] 
-      if wik > 0
+      if wik > zero(R)
         Δw = (  plast.A*plast.αpre + # add presynaptic firing bias
                 plast.post_plus_trace.val[i]*plast.Aplus +
                 plast.post_minus_trace.val[i]*plast.Aminus)
@@ -449,7 +449,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is postsynaptic: go along columns of k_post row
     for j in 1:npre
       wkj = weights[k_post_spike,j] 
-      if wkj > 0
+      if wkj > zero(R)
         Δw = ( plast.A*plast.αpost + 
                plast.pre_minus_trace.val[j]*plast.Aminus +
                plast.pre_plus_trace.val[j]*plast.Aplus) 
