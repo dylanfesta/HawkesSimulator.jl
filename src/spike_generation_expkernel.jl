@@ -346,7 +346,7 @@ end
 
 function call_for_each_compute_signal_upper(ret,t_now,idxneu,ps_post,connections,pre_states)
     ret += propagated_signal_upper(t_now,idxneu,ps_post,first(connections),first(pre_states)) 
-    return call_for_each_compute_signal(ret,t_now,idxneu,ps_post,
+    return call_for_each_compute_signal_upper(ret,t_now,idxneu,ps_post,
       Base.tail(connections),Base.tail(pre_states)) 
 end
 function call_for_each_compute_signal_upper(ret,t_now,idxneu,ps_post,::Tuple{},::Tuple{})
