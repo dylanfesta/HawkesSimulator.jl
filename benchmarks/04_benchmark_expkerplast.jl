@@ -54,20 +54,33 @@ pse,trae = H.population_state_exp_and_trace(ne,τe)
 psi,trai = H.population_state_exp_and_trace_inhibitory(ni,τi)
 
 
-plasticity = let τ=400E-3,
+plasticity_ee = let τ=400E-3,
   γ=3.0,
   A = 1E-9,
-  θ = -1,
+  θ = -1.0,
   αpre = 0.1,
-  αpost = 0.2
+  αpost = 0.2,
+  _bounds = H.PlasticityBoundsLowHigh(1E-6,1.0)
   H.PlasticitySymmetricSTDPX(A,θ,τ,γ,
-    αpre,αpost,ne,ne)
+    αpre,αpost,ne,ne;plasticity_bounds=_bounds)
+end
+
+plasticity_ei = let τ=400E-3,
+  γ=3.0,
+  A = 1E-9,
+  θ = -3.0,
+  αpre = 0.1,
+  αpost = 0.2,
+  #_bounds = H.PlasticityBoundsNonnegative()
+  _bounds = H.PlasticityBoundsLowHigh(1E-6,1.0)
+  H.PlasticitySymmetricSTDPX(A,θ,τ,γ,
+    αpre,αpost,ne,ne;plasticity_bounds=_bounds)
 end
 
 
-conn_ee = H.ConnectionExpKernel(wmat_ee,trae,plasticity)
+conn_ee = H.ConnectionExpKernel(wmat_ee,trae,plasticity_ee)
 conn_ie = H.ConnectionExpKernel(wmat_ie,trae)
-conn_ei = H.ConnectionExpKernel(wmat_ei,trai)
+conn_ei = H.ConnectionExpKernel(wmat_ei,trai,plasticity_ei)
 conn_ii = H.ConnectionExpKernel(wmat_ii,trai)
 
 
@@ -113,6 +126,20 @@ _ = simulate!(network,10;initial_e=r0e,initial_i=r0i)
 # Time  (mean ± σ):   744.679 ms ±  39.606 ms  ┊ GC (mean ± σ):  10.67% ±  0.38%
 #
 # Memory estimate: 1.28 GiB, allocs estimate: 21919655.
+
+# 20230512
+# BenchmarkTools.Trial: 14 samples with 1 evaluation.
+#  Range (min … max):  320.661 ms … 422.068 ms  ┊ GC (min … max): 0.65% … 0.82%
+#  Time  (median):     354.990 ms               ┊ GC (median):    0.85%
+#  Time  (mean ± σ):   357.712 ms ±  28.307 ms  ┊ GC (mean ± σ):  0.98% ± 0.39%
+# 
+#   ▁  ▁ ▁▁       ▁   █    ▁█       ▁▁            ▁             ▁  
+#   █▁▁█▁██▁▁▁▁▁▁▁█▁▁▁█▁▁▁▁██▁▁▁▁▁▁▁██▁▁▁▁▁▁▁▁▁▁▁▁█▁▁▁▁▁▁▁▁▁▁▁▁▁█ ▁
+#   321 ms           Histogram: frequency by time          422 ms <
+# 
+#  Memory estimate: 50.74 MiB, allocs estimate: 410016.
+
+
 
 # (plasticity is nearly negligible here! So no need to optimize it!)
 

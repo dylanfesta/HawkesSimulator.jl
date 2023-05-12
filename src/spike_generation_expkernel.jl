@@ -302,14 +302,25 @@ propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
   ::PopulationStateGlobalStabilization) = 0.0
 
 
+
+
+function call_for_each_compute_signal(ret,t_now,idxneu,ps_post,connections,pre_states)
+    ret += propagated_signal(t_now,idxneu,ps_post,first(connections),first(pre_states)) 
+    return call_for_each_compute_signal(ret,t_now,idxneu,ps_post,
+      Base.tail(connections),Base.tail(pre_states)) 
+end
+function call_for_each_compute_signal(ret,t_now,idxneu,ps_post,::Tuple{},::Tuple{})
+  return ret
+end
+  
 function compute_rate(t_now::Float64,external_input::Float64,
     pop::PopulationExpKernel, idxneu::Integer)::Float64
-  ret = external_input
   ps_post = pop.state
-  nc = length(pop.connections)
-  for i in 1:nc
-    ret += propagated_signal(t_now,idxneu,ps_post,pop.connections[i] ,pop.pre_states[i])::Float64
-  end
+  ret = call_for_each_compute_signal(external_input,t_now,idxneu,ps_post,pop.connections,pop.pre_states)
+  #nc = length(pop.connections)
+  #for i in 1:nc
+  #  ret += propagated_signal(t_now,idxneu,ps_post,pop.connections[i] ,pop.pre_states[i])::Float64
+  #end
   ret = apply_nonlinearity(ret,pop.nonlinearity)
   return ret
 end
@@ -323,6 +334,8 @@ end
 
 
 # upper boundary ignores inhibitory component, because it's increasing!
+
+
 function compute_rates_upper!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
   inputs = pop.input
   for i in eachindex(r_alloc)
@@ -330,15 +343,21 @@ function compute_rates_upper!(r_alloc::Vector{Float64},t_now::Real,pop::Populati
   end
   return nothing
 end
+
+function call_for_each_compute_signal_upper(ret,t_now,idxneu,ps_post,connections,pre_states)
+    ret += propagated_signal_upper(t_now,idxneu,ps_post,first(connections),first(pre_states)) 
+    return call_for_each_compute_signal(ret,t_now,idxneu,ps_post,
+      Base.tail(connections),Base.tail(pre_states)) 
+end
+function call_for_each_compute_signal_upper(ret,t_now,idxneu,ps_post,::Tuple{},::Tuple{})
+  return ret
+end
+
 function compute_rate_upper(t_now::Real,external_input::Real,pop::PopulationExpKernel, 
     idxneu::Integer)
-  ret = external_input
   ps_post = pop.state
-  nc = length(pop.connections)
-  for i in 1:nc
-    ret += propagated_signal_upper(t_now,idxneu,ps_post,
-      pop.connections[i],pop.pre_states[i])
-  end
+  ret = call_for_each_compute_signal_upper(external_input,t_now,idxneu,ps_post,
+    pop.connections,pop.pre_states)
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
 

@@ -18,17 +18,22 @@ end
 # bounds are structures too!
 # because!
 
-abstract type PlasticityBounds end
-struct PlasticityBoundsNonnegative <: PlasticityBounds end
-struct PlasticityBoundsLowHigh <: PlasticityBounds 
-  low::Float64
-  high::Float64
+abstract type PlasticityBounds{R} end
+struct PlasticityBoundsNonnegative{R} <: PlasticityBounds{R} end
+
+function PlasticityBoundsNonnegative()
+  return PlasticityBoundsNonnegative{Float64}()
 end
-function (plb::PlasticityBoundsNonnegative)(w::R,Δw::R) where R
+
+struct PlasticityBoundsLowHigh{R} <: PlasticityBounds{R} 
+  low::R
+  high::R
+end
+@inline function (plb::PlasticityBoundsNonnegative{R})(w::R,Δw::R)::R where R<:Real
   ret = w+Δw
-  return max(eps(100.0),ret)
+  return max(100*eps(R),ret)
 end
-function (plb::PlasticityBoundsLowHigh)(w::R,Δw::R) where R
+@inline function (plb::PlasticityBoundsLowHigh{R})(w::R,Δw::R)::R where R<:Real
   ret = w+Δw
   return min(plb.high,max(plb.low,ret))
 end
@@ -77,17 +82,17 @@ plasticity_update!(::Real,::Integer,::Integer,::AbstractPopulationState,::Connec
   ::AbstractPopulationState,::NoPlasticity) = nothing
 
 # Pairwise plasticity 
-struct PairSTDP <: PlasticityRule
-  Aplus::Float64
-  Aminus::Float64
-  traceplus::Trace
-  traceminus::Trace
+struct PairSTDP{R} <: PlasticityRule
+  Aplus::R
+  Aminus::R
+  traceplus::Trace{ForPlasticity,R}
+  traceminus::Trace{ForPlasticity,R}
   bounds::PlasticityBounds
   function PairSTDP(τplus,τminus,Aplus,Aminus,n_post,n_pre;
        plasticity_bounds=PlasticityBoundsNonnegative())
     traceplus = Trace(τplus,n_pre) # (r) add on post firing based on pre trace
     traceminus = Trace(τminus,n_post) # (o) subtract on pre firing based on post trace 
-    new(Aplus,Aminus,traceplus,traceminus,plasticity_bounds)
+    new{Float64}(Aplus,Aminus,traceplus,traceminus,plasticity_bounds)
   end
 end
 function reset!(pl::PairSTDP)
@@ -96,8 +101,8 @@ function reset!(pl::PairSTDP)
   return nothing
 end
 
-function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
-    ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,plast::PairSTDP)
+function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,::AbstractPopulationState,
+    conn::Connection,::AbstractPopulationState,plast::PairSTDP{R}) where R
   if iszero(k_pre_spike) && iszero(k_post_spike)
     return nothing
   end
@@ -113,7 +118,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is presynaptic: go along rows of k_pre column 
     for i in 1:npost
       wik = weights[i,k_pre_spike] 
-      if wik > 0
+      if !iszero(wik)
         Δw = plast.traceminus.val[i]*plast.Aminus
         weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
       end
@@ -123,7 +128,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is postsynaptic: go along columns of k_post row
     for j in 1:npre
       wkj = weights[k_post_spike,j] 
-      if wkj > 0
+      if !iszero(wkj)
         Δw = plast.traceplus.val[j]*plast.Aplus
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
       end
@@ -221,13 +226,13 @@ end
 # Symmetric STDP
 
 # Pairwise plasticity 
-struct SymmetricSTDP <: PlasticityRule
-  Aplus::Float64
-  Aminus::Float64
-  post_plus_trace::Trace
-  post_minus_trace::Trace
-  pre_plus_trace::Trace
-  pre_minus_trace::Trace
+struct SymmetricSTDP{R} <: PlasticityRule
+  Aplus::R
+  Aminus::R
+  post_plus_trace::Trace{ForPlasticity,R}
+  post_minus_trace::Trace{ForPlasticity,R}
+  pre_plus_trace::Trace{ForPlasticity,R}
+  pre_minus_trace::Trace{ForPlasticity,R}
   bounds::PlasticityBounds
   function SymmetricSTDP(τplus,τminus,Aplus,Aminus,n_post,n_pre;
        plasticity_bounds=PlasticityBoundsNonnegative())
@@ -235,7 +240,7 @@ struct SymmetricSTDP <: PlasticityRule
     post_minus_t = Trace(τminus,n_post)
     pre_plus_t = Trace(τplus,n_pre)
     pre_minus_t = Trace(τminus,n_pre)
-    new(Aplus,Aminus,post_plus_t,post_minus_t,
+    new{Float64}(Aplus,Aminus,post_plus_t,post_minus_t,
      pre_plus_t,pre_minus_t,plasticity_bounds)
   end
 end
@@ -247,9 +252,9 @@ function reset!(pl::SymmetricSTDP)
   return nothing
 end
 
-function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
-    plast::SymmetricSTDP)
+    plast::SymmetricSTDP{R}) where R
   if iszero(k_pre_spike) && iszero(k_post_spike)
     return nothing
   end
@@ -274,7 +279,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is presynaptic: go along rows of k_pre column 
     for i in 1:npost
       wik = weights[i,k_pre_spike] 
-      if wik > 0
+      if !iszero(wik)
         Δw = ( plast.post_minus_trace.val[i]*plast.Aminus +
                plast.post_plus_trace.val[i]*plast.Aplus) 
         weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
@@ -285,7 +290,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is postsynaptic: go along columns of k_post row
     for j in 1:npre
       wkj = weights[k_post_spike,j] 
-      if wkj > 0
+      if !iszero(wkj)
         Δw = ( plast.pre_minus_trace.val[j]*plast.Aminus +
                plast.pre_plus_trace.val[j]*plast.Aplus) 
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
@@ -308,12 +313,12 @@ end
 
 # Warning : this formulation assumes all positive weights !
 
-struct PlasticityInhibitory <: PlasticityRule
-  τ::Float64
-  η::Float64
-  α::Float64
-  o::Trace # pOst
-  r::Trace # pRe
+struct PlasticityInhibitory{R} <: PlasticityRule
+  τ::R
+  η::R
+  α::R
+  o::Trace{ForPlasticity,R} # pOst
+  r::Trace{ForPlasticity,R} # pRe
   bounds::PlasticityBounds
   function PlasticityInhibitory(τ,η,n_post,n_pre;
       r_target=5.0,
@@ -321,7 +326,7 @@ struct PlasticityInhibitory <: PlasticityRule
     α = 2*r_target*τ
     o = Trace(τ,n_post,ForPlasticity())    
     r = Trace(τ,n_pre,ForPlasticity())    
-    new(τ,η,α,o,r,plasticity_bounds)
+    new{Float64}(τ,η,α,o,r,plasticity_bounds)
   end
 end
 function reset!(pl::PlasticityInhibitory)
@@ -329,9 +334,9 @@ function reset!(pl::PlasticityInhibitory)
   return nothing
 end
 
-function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
-    plast::PlasticityInhibitory)
+    plast::PlasticityInhibitory{R}) where R<:Real
   if iszero(k_pre_spike) && iszero(k_post_spike)
     return nothing
   end
@@ -384,10 +389,10 @@ struct PlasticitySymmetricSTDPX{R} <: PlasticityRule
   post_minus_trace::Trace{ForPlasticity,R}
   pre_plus_trace::Trace{ForPlasticity,R}
   pre_minus_trace::Trace{ForPlasticity,R}
-  bounds::PlasticityBounds
-  function PlasticitySymmetricSTDPX(A,θ,τ,γ,
-      αpre,αpost,n_post,n_pre;
-      plasticity_bounds=PlasticityBoundsNonnegative())
+  bounds::PlasticityBounds{R}
+  function PlasticitySymmetricSTDPX(A::R,θ::R,τ::R,γ::R,
+      αpre::R,αpost::R,n_post::Integer,n_pre::Integer;
+      plasticity_bounds=PlasticityBoundsNonnegative{R}()) where R
     post_plus_t = Trace(τ,n_post)
     post_minus_t = Trace(τ*γ,n_post)
     pre_plus_t = Trace(τ,n_pre)
@@ -437,7 +442,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is presynaptic: go along rows of k_pre column 
     for i in 1:npost
       wik = weights[i,k_pre_spike] 
-      if wik > zero(R)
+      if !iszero(wik)
         Δw = (  plast.A*plast.αpre + # add presynaptic firing bias
                 plast.post_plus_trace.val[i]*plast.Aplus +
                 plast.post_minus_trace.val[i]*plast.Aminus)
@@ -449,7 +454,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     # k is postsynaptic: go along columns of k_post row
     for j in 1:npre
       wkj = weights[k_post_spike,j] 
-      if wkj > zero(R)
+      if !iszero(wkj)
         Δw = ( plast.A*plast.αpost + 
                plast.pre_minus_trace.val[j]*plast.Aminus +
                plast.pre_plus_trace.val[j]*plast.Aplus) 
