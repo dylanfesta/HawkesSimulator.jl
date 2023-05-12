@@ -120,8 +120,10 @@ _ = simulate!(network,10;initial_e=r0e,initial_i=r0i)
 
 # 20230511
 
-
-
+# TO DO : try again with this
+# https://discourse.julialang.org/t/manual-dispatch-over-a-constant-type-set/57811/4
+# AND with this
+# https://github.com/cstjean/Unrolled.jl
 
 ########################
 ## Profiling
