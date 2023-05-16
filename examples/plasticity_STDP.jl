@@ -533,16 +533,16 @@ A = -0.1;
 # Set to -1.0 for no bias, >-1.0 for negative bias, <-1 for positive bias 
 θ = -1.0;
 # This is the bias on r_pre 
-αpre = -1;
+αpre = -1.0;
 # This is the bias on r_post
-αpost = 3; 
+αpost = 3.0; 
 
 function expected_symmX_stdp(Δt::Real)
   myAplus = A/τ
   myAminus =θ*A/(γ*τ)
   myτplus = τ
   myτminus = γ*τ
-  b =  Δt>0 ? αpost : αpre
+  b =  Δt>0 ? A*αpost : A*αpre
   return b + myAplus*exp(-abs(Δt)/myτplus) + myAminus*exp(-abs(Δt)/myτminus)
 end
 
@@ -569,4 +569,7 @@ end
 ## src
 # **THE END**
 
-using Literate; Literate.markdown("examples/plasticity_STDP.jl","docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src
+
+## publish in documentation #src
+thisfile = joinpath(splitpath(@__FILE__)[end-1:end]...) #src
+using Literate; Literate.markdown(thisfile,"docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src

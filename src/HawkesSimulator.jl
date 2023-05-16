@@ -234,15 +234,15 @@ function nneurons(tra::Trace)
   return length(tra.val)
 end
 
-function propagate!(tnow::Float64,tra::Trace{P,Float64}) where P
+function propagate!(tnow::R,tra::Trace{P,R}) where {P,R}
   Δt = tnow - tra.t_last
   tra.val .*= exp(-Δt/tra.τ)
   tra.t_last=tnow
   return nothing
 end
 # updates single element of trace, unless it is nothing
-function update_now!(tra::Trace,idx_update::Int64,up_val::Float64=1.0)
-  if idx_update != 0
+function update_now!(tra::Trace{P,R},idx_update::Int64,up_val::R=1.0) where {P,R}
+  if !iszero(idx_update)
     tra.val[idx_update] += up_val
   end
   return nothing

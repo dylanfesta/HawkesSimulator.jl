@@ -586,21 +586,21 @@ nothing #hide
 This is the bias on r_pre
 
 ````@example plasticity_STDP
-αpre = -1;
+αpre = -1.0;
 nothing #hide
 ````
 
 This is the bias on r_post
 
 ````@example plasticity_STDP
-αpost = 3;
+αpost = 3.0;
 
 function expected_symmX_stdp(Δt::Real)
   myAplus = A/τ
   myAminus =θ*A/(γ*τ)
   myτplus = τ
   myτminus = γ*τ
-  b =  Δt>0 ? αpost : αpre
+  b =  Δt>0 ? A*αpost : A*αpre
   return b + myAplus*exp(-abs(Δt)/myτplus) + myAminus*exp(-abs(Δt)/myτminus)
 end
 
