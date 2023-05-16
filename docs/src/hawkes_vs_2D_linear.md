@@ -151,17 +151,16 @@ end
 nspikes = nrec - 1
 t_end=run_simulation!(netw,nspikes)
 
-# #src
-
-rates_e,rates_i = H.numerical_rates(rec);
-nothing #hide
+recc = H.get_content(rec)
+rates_e = H.numerical_rates(recc,1,t_end;pop_idx=1)
+rates_i = H.numerical_rates(recc,1,t_end;pop_idx=2)
 ````
 
 ## Result: compare the rate in the two sytems
 
 ````@example hawkes_vs_2D_linear
-@info "final rates are $(runrates[:,end])"
-@info "Hawkes final rates are $(first.((rates_e,rates_i)))"
+@info "final rates are $(round.(runrates[:,end];digits=2))"
+@info "Hawkes final rates are $(round.(first.((rates_e,rates_i));digits=2))"
 ````
 
 **THE END**
