@@ -191,10 +191,17 @@ plot the average weight, to check for stability
 plot(times_W ./ 60.0,mean.(Ws);
   label="average weight",xlabel="time (min)",ylabel="weight",linewidth=2,leg=false,
   linecolor=:blue,opacity=0.5)
+````
 
+plot the weight matrix before
+
+````@example plasticity_rate_based
 p1 = Wplot(W_start;title="initial weights")
+````
 
+plot weight after
 
+````@example plasticity_rate_based
 p2 = Wplot(W_end;title="final weights")
 ````
 
@@ -316,11 +323,15 @@ plot(times_W ./ 60.0,mean.(Ws);
   linecolor=:blue,opacity=0.5)
 ````
 
-plot the weight matrix before and after
+plot the weight matrix before
 
 ````@example plasticity_rate_based
-p1 = Wplot(W_start;title="initial weights (very low)")
+p1 = Wplot(W_start;title="initial weights")
+````
 
+plot weight after
+
+````@example plasticity_rate_based
 p2 = Wplot(W_end;title="final weights")
 ````
 
@@ -340,7 +351,7 @@ plasticity_ee_asymm_blanket = let A = 2E-6,
   τ = 40E-3,
   wee_max = 0.3,
   γ = 1.0,
-  θ = -1.3, # try either -1.3 or  -1.02
+  θ = -1.02, # try either -1.3 or  -1.02
   αpre =  0.0
   αpost = -ree_targ*(1+θ)
   bounds=H.PlasticityBoundsLowHigh(wmin,wee_max)
@@ -432,11 +443,15 @@ plot(times_W ./ 60.0,mean.(Ws);
   linecolor=:blue,opacity=0.5)
 ````
 
-plot the weight matrix before and after
+plot the weight matrix before
 
 ````@example plasticity_rate_based
-p1 = Wplot(W_start;title="initial weights (very low)")
+p1 = Wplot(W_start;title="initial weights")
+````
 
+plot weight after
+
+````@example plasticity_rate_based
 p2 = Wplot(W_end;title="final weights")
 ````
 
