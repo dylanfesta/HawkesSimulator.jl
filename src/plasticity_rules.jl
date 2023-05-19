@@ -509,7 +509,7 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Intege
   propagate!(t_spike,plast.post_trace)
   # increase the plasticity trace variables (if not zero)
   update_now!(plast.post_trace,k_post_spike)
-  update_now!(plast.pre_trace,k_post_spike)
+  update_now!(plast.pre_trace,k_pre_spike)
   # update synapses
   weights=conn.weights
   npost,npre = size(weights)
