@@ -90,12 +90,6 @@ plasticity_ee_nonblanket = let A = 8E-7,
 end;
 
 # generate initial weights
-# W_start = rand(ne,ne)*0.01 .+ wmin
-# for i in eachindex(W_start)
-#   if rand() < 0.1
-#     W_start[i] = wmin
-#   end
-# end
 W_start = fill(0.01,ne,ne)
 W_start[diagind(W_start)] .= 0.0
 
@@ -167,18 +161,21 @@ p2 = Wplot(W_end;title="final weights")
 ## Result
 
 Even without heterosynaptic effects, then netwrok reaches a symmetric
-sparse structre. The number of connections depend on the target rate.
+sparse structre. The number of connections depends on the target rate.
 
 But careful! When neuron correlate, they increase their target rate,
- therefore the final rate will *not* correspond to the target rate,
- but be higher! So a high target rate might result in an even higher 
- final rate, with the risk of triggering a runaway excitation. 
+therefore the final rate will *not* correspond to the target rate,
+but be higher! So a high target rate might result in an even higher 
+final rate, with the risk of triggering a runaway excitation. 
+
+In this regime, seems that the target rate should be very close to the
+input current. So this type of plasticity can't be used to change
+the network operating regine.
 
 # Blanket exc to exc
 
 We want something really rate-dominated. Therefore
-the (1+θ) should be strong and negative. 
-
+the (1+θ) should be strong and negative.  Hence `θ = -4.0`
 
 =#
 ## #src
@@ -201,11 +198,6 @@ end;
 
 # generate initial weights
 W_start = fill(0.01,ne,ne)
-# for i in eachindex(W_start)
-#   if rand() < 0.1
-#     W_start[i] = wmin
-#   end
-# end
 W_start[diagind(W_start)] .= 0.0
 
 
@@ -284,8 +276,10 @@ and it is still symmetric.
 
 # From symmetric to asymmetric STDP
 
-An asymmetric STDP will force a certain directionality in the connection.
-Let's see how that turns out.
+An asymmetric STDP will force a directionality in the connection.
+Let's see how that turns out. Again take the regime of
+strong and sparse  so small (1+θ) and input current very close
+to target rate.
 
 =#
 ## #src
@@ -294,7 +288,7 @@ he = 5.0
 plasticity_ee_asymm_blanket = let A = 8E-7,
   ree_targ = 5.01,
   τ = 40E-3,
-  wee_max = 0.2,
+  wee_max = 0.25,
   γ = 1.0,
   θ = -1.2,
   αpre =  -ree_targ*(1+θ)
