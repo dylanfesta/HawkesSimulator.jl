@@ -66,23 +66,23 @@ end;
 ## #src
 # # First example: E E network with symmetric rule in "tuning" plasticty regime
 
-n_spikes = 3_000_000
+n_spikes = 6_000_000
 τker_e = 50E-3
 ne = 10
-he = 20.0
+he = 10.0
 wmin = 1E-5
   
 ps_e,tr_e = H.population_state_exp_and_trace(ne,τker_e);
 
 # E to E plasticity is created here.
 # the tuning feature is regulated by setting θ clearly lower than -1
-plasticity_ee_nonblanket = let A = 2E-6,
-  ree_targ = 30.0,
+plasticity_ee_nonblanket = let A = 8E-7,
+  ree_targ = 11.0,
   τ = 40E-3,
-  wee_max = 1.1, # will never be reached, as long as the target rate is low enough
+  wee_max = 0.1, # will never be reached, as long as the target rate is low enough
   γ = 10.0,
-  θ = -3.0, #  must be lower than -1 !
-  αpre =  0.0
+  θ = -1.1, #  must be lower than -1 !
+  αpre =  -ree_targ*(1+θ)
   αpost = -ree_targ*(1+θ)
   bounds=H.PlasticityBoundsLowHigh(wmin,wee_max)
   H.PlasticitySymmetricSTDPX(A,θ,τ,γ,αpre,αpost,ne,ne;
@@ -90,7 +90,7 @@ plasticity_ee_nonblanket = let A = 2E-6,
 end;
 
 # generate initial weights
-W_start = rand(ne,ne)*0.01 .+ wmin
+W_start = fill(0.01,ne,ne)
 W_start[diagind(W_start)] .= 0.0
 
 connection_ee = H.ConnectionExpKernel(copy(W_start),tr_e,plasticity_ee_nonblanket);
@@ -102,8 +102,8 @@ pop_e = H.PopulationExpKernel(ps_e,fill(he,ne),(connection_ee,ps_e));
 rec_spk = H.RecFullTrain(n_spikes+1,1);
 
 # Record weights too
-Δt_wrec = 30.0
-Tend_wrec =  4*3600.0
+Δt_wrec = 5*60.0
+Tend_wrec =  14*3600.0
 rec_wee = H.RecTheseWeights(connection_ee.weights,Δt_wrec,Tend_wrec);
 
 # define network:
@@ -112,6 +112,7 @@ netw = H.RecurrentNetworkExpKernel((pop_e,),(rec_spk,rec_wee));
 ## #src
 
 # Ready to run!
+H.reset!(netw)
 t_end = run_simulation!(netw,n_spikes;show_progress=false)
 @info """
 Simulation completed at time $(round(t_end/60.0;digits=1)) min or $(round(t_end/3600.0;digits=2)) hours
@@ -130,18 +131,22 @@ Ws = rec_weec.weights;
 recc_spk = H.get_content(rec_spk)
 trains_e = H.get_trains(recc_spk;pop_idx=1)
 
-Δt_rates = 10.0
+Δt_rates = 10*60.0
 times_r, rates_insta_e = H.instantaneous_rates(trains_e,Δt_rates ,t_end);
 
 # plot the rates to show that they are more or less stable
 plot(times_r ./ 60.0,rates_insta_e';
   label="rates",xlabel="time (min)",ylabel="rate (Hz)",linewidth=2,leg=false,
-  linecolor=:blue,opacity=0.5)
+  linecolor=:blue,opacity=0.5,
+  ylims=(0,maximum(rates_insta_e)*1.1))
 
 # plot the average weight, to check for stability
-plot(times_W ./ 60.0,mean.(Ws);
-  label="average weight",xlabel="time (min)",ylabel="weight",linewidth=2,leg=false,
-  linecolor=:blue,opacity=0.5)
+theplot = let yplot = mean.(Ws)
+  plot(times_W ./ 60.0,yplot;
+    label="average weight",xlabel="time (min)",ylabel="weight",linewidth=5,leg=false,
+    linecolor=colorant"orange",opacity=0.5,
+    ylims=(0,maximum(yplot)*1.1 ))
+end
 
 
 # plot the weight matrix before
@@ -155,27 +160,35 @@ p2 = Wplot(W_end;title="final weights")
 #=
 ## Result
 
-Note that a mutual saturating connection would be enough to trigger exploding runaway
- excitation. However, the system is self-stabilizing, final weights are well below saturation.
+Even without heterosynaptic effects, then netwrok reaches a symmetric
+sparse structre. The number of connections depends on the target rate.
 
-Due to the parameter choice, few neurons have the most
-outgoing connections. With even stronger tuning (like θ = -5.0) a single neuron
-will be  driving the rest of the network.
+But careful! When neuron correlate, they increase their target rate,
+therefore the final rate will *not* correspond to the target rate,
+but be higher! So a high target rate might result in an even higher 
+final rate, with the risk of triggering a runaway excitation. 
 
+In this regime, seems that the target rate should be very close to the
+input current. So this type of plasticity can't be used to change
+the network operating regine.
 
 # Blanket exc to exc
 
-I set θ just a tiny bit below -1
+We want something really rate-dominated. Therefore
+the (1+θ) should be strong and negative.  Hence `θ = -4.0`
 
 =#
 ## #src
-plasticity_ee_blanket = let A = 2E-6,
+
+
+he = 5.0
+plasticity_ee_blanket = let A = 8E-7,
   ree_targ = 30.0,
   τ = 40E-3,
-  wee_max = 1.1,
+  wee_max = Inf, # here does not play a role!
   γ = 10.0,
-  θ = -1.2, #  must be lower than -1 !
-  αpre =  0.0
+  θ = -4.0, #  must be lower than -1 !
+  αpre =  -ree_targ*(1+θ)
   αpost = -ree_targ*(1+θ)
   bounds=H.PlasticityBoundsLowHigh(wmin,wee_max)
   H.PlasticitySymmetricSTDPX(A,θ,τ,γ,αpre,αpost,ne,ne;
@@ -184,8 +197,9 @@ end;
 
 
 # generate initial weights
-W_start = rand(ne,ne)*0.01 .+ wmin
+W_start = fill(0.01,ne,ne)
 W_start[diagind(W_start)] .= 0.0
+
 
 H.reset!(ps_e)
 connection_ee = H.ConnectionExpKernel(copy(W_start),tr_e,plasticity_ee_blanket);
@@ -196,8 +210,6 @@ pop_e = H.PopulationExpKernel(ps_e,fill(he,ne),(connection_ee,ps_e));
 rec_spk = H.RecFullTrain(n_spikes+1,1)
 
 # Record weights too
-Δt_wrec = 30.0
-Tend_wrec =  3*3600.0
 rec_wee = H.RecTheseWeights(connection_ee.weights,Δt_wrec,Tend_wrec)
 
 # define network:
@@ -224,18 +236,22 @@ Ws = rec_weec.weights;
 recc_spk = H.get_content(rec_spk)
 trains_e = H.get_trains(recc_spk;pop_idx=1)
 
-Δt_rates = 10.0
 times_r, rates_insta_e = H.instantaneous_rates(trains_e,Δt_rates ,t_end);
+
 
 # plot the rates to show that they are more or less stable
 plot(times_r ./ 60.0,rates_insta_e';
   label="rates",xlabel="time (min)",ylabel="rate (Hz)",linewidth=2,leg=false,
-  linecolor=:blue,opacity=0.5)
+  linecolor=:blue,opacity=0.5,
+  ylims=(0,maximum(rates_insta_e)*1.1))
 
 # plot the average weight, to check for stability
-plot(times_W ./ 60.0,mean.(Ws);
-  label="average weight",xlabel="time (min)",ylabel="weight",linewidth=2,leg=false,
-  linecolor=:blue,opacity=0.5)
+theplot = let yplot = mean.(Ws)
+  plot(times_W ./ 60.0,yplot;
+    label="average weight",xlabel="time (min)",ylabel="weight",linewidth=5,leg=false,
+    linecolor=colorant"orange",opacity=0.5,
+    ylims=(0,maximum(yplot)*1.1 ))
+end
 
 
 # plot the weight matrix before
@@ -249,8 +265,8 @@ p2 = Wplot(W_end;title="final weights")
 #=
 ## Result
 
-The excitation tends to be much more distributed across the network, and is symmetric,
-matching the symmetry of the pairwise STDP component.
+The excitation tends to be much more distributed across the network, 
+and it is still symmetric.
 =#
 
 
@@ -260,18 +276,22 @@ matching the symmetry of the pairwise STDP component.
 
 # From symmetric to asymmetric STDP
 
-An asymmetric STDP will force a certain directionality in the connection.
-Let's see how that turns out.
+An asymmetric STDP will force a directionality in the connection.
+Let's see how that turns out. Again take the regime of
+strong and sparse  so small (1+θ) and input current very close
+to target rate.
 
 =#
 ## #src
-plasticity_ee_asymm_blanket = let A = 2E-6,
-  ree_targ=20.,
+
+he = 5.0
+plasticity_ee_asymm_blanket = let A = 8E-7,
+  ree_targ = 5.01,
   τ = 40E-3,
-  wee_max = 0.3,
+  wee_max = 0.25,
   γ = 1.0,
-  θ = -1.02, # try either -1.3 or  -1.02 
-  αpre =  0.0
+  θ = -1.2,
+  αpre =  -ree_targ*(1+θ)
   αpost = -ree_targ*(1+θ)
   bounds=H.PlasticityBoundsLowHigh(wmin,wee_max)
   H.PlasticityAsymmetricX(A,θ,τ,γ,αpre,αpost,ne,ne;
@@ -287,8 +307,6 @@ pop_e = H.PopulationExpKernel(ps_e,fill(he,ne),(connection_ee,ps_e));
 rec_spk = H.RecFullTrain(n_spikes+1,1);
 
 # Record weights too
-Δt_wrec = 30.0
-Tend_wrec =  3*3600.0
 rec_wee = H.RecTheseWeights(connection_ee.weights,Δt_wrec,Tend_wrec);
 
 # define network:
@@ -315,18 +333,22 @@ Ws = rec_weec.weights;
 recc_spk = H.get_content(rec_spk)
 trains_e = H.get_trains(recc_spk;pop_idx=1)
 
-Δt_rates = 10.0
 times_r, rates_insta_e = H.instantaneous_rates(trains_e,Δt_rates ,t_end);
+
 
 # plot the rates to show that they are more or less stable
 plot(times_r ./ 60.0,rates_insta_e';
   label="rates",xlabel="time (min)",ylabel="rate (Hz)",linewidth=2,leg=false,
-  linecolor=:blue,opacity=0.5)
+  linecolor=:blue,opacity=0.5,
+  ylims=(0,maximum(rates_insta_e)*1.1))
 
 # plot the average weight, to check for stability
-plot(times_W ./ 60.0,mean.(Ws);
-  label="average weight",xlabel="time (min)",ylabel="weight",linewidth=2,leg=false,
-  linecolor=:blue,opacity=0.5)
+theplot = let yplot = mean.(Ws)
+  plot(times_W ./ 60.0,yplot;
+    label="average weight",xlabel="time (min)",ylabel="weight",linewidth=5,leg=false,
+    linecolor=colorant"orange",opacity=0.5,
+    ylims=(0,maximum(yplot)*1.1 ))
+end
 
 # plot the weight matrix before
 p1 = Wplot(W_start;title="initial weights")
@@ -339,10 +361,8 @@ p2 = Wplot(W_end;title="final weights")
 #=
 ## Result
 
-With an antisymmetric STDP, the system really likes saturation, but really dislikes symemtry.
-I had to further lower the target rate, and to set a lower bound on the weights, that now is almost 
-always reached.  With  `θ = -1.02` we have a "blanket" regime, where most neurons are interccnnected.
-With `θ = -1.3` few "winning" neurons give input to the rest of the network.
+With an antisymmetric STDP, the system really likes saturation, but really dislikes symmetry.
+The weight matrix is nearly perferctly antisymmetric, you could play Tetris with it.
 =#
 
 
