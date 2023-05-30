@@ -456,8 +456,8 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
       wkj = weights[k_post_spike,j] 
       if !iszero(wkj)
         Δw = ( plast.A*plast.αpost + 
-               plast.pre_minus_trace.val[j]*plast.Aminus +
-               plast.pre_plus_trace.val[j]*plast.Aplus) 
+               plast.pre_plus_trace.val[j]*plast.Aplus +
+               plast.pre_minus_trace.val[j]*plast.Aminus) 
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
       end
     end
