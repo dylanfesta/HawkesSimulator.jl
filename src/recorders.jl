@@ -86,3 +86,32 @@ end
 function get_content(rec::RecTheseWeights)
   return RecTheseWeightsContent(rec)
 end
+
+
+# Generic object to do stuff every Δt
+
+mutable struct DoEveryDt{R} <: Recorder
+  Δt::R
+  Tstart::R
+  Tend::R
+  t_last::R
+  thing_to_do::Function
+end
+
+function reset!(rec::DoEveryDt)
+  rec.t_last = -Inf
+  return nothing
+end
+
+# general signature: record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
+function record_stuff!(rec::DoEveryDt{R},tfire::R,whatevs...) where R
+  #check time
+  if ((tfire - rec.t_last) < rec.Δt) || (tfire < rec.Tstart) || (tfire > rec.Tend) 
+    return nothing
+  end
+  # we must record !
+  # update
+  rec.t_last = tfire
+  rec.thing_to_do(tfire,whatevs...)
+  return nothing
+end
