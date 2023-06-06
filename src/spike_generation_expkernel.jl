@@ -192,6 +192,11 @@ function RecurrentNetworkExpKernel(pop::AbstractPopulation,recorders...)
   end
   return RecurrentNetworkExpKernel((pop,),recorders)
 end
+# multiple pops, but no recorders
+function RecurrentNetworkExpKernel(pops::Tuple)
+  recorders=(RecNothing(),)
+  return RecurrentNetworkExpKernel(pops,recorders)
+end
 
 # reset
 function reset!(rn::RecurrentNetworkExpKernel)

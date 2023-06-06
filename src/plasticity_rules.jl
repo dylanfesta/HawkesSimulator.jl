@@ -482,8 +482,8 @@ struct PlasticityAsymmetricX{R} <: PlasticityRule
   function PlasticityAsymmetricX(A::R,θ::R,τ::R,γ::R,
       αpre::R,αpost::R,n_post::Integer,n_pre::Integer;
       plasticity_bounds=PlasticityBoundsNonnegative()) where R<:Real
-    trace_post = Trace(τ,n_post) # this is the A plus side
-    trace_pre = Trace(τ*γ,n_pre) # this is the A minus side
+    trace_post = Trace(τ*γ,n_post) # this is the A minus side
+    trace_pre = Trace(τ,n_pre) # this is the A plus side
     Aplus = A/τ
     Aminus = θ*A/(γ*τ)
     @assert γ>0 "Something wrong with parameter γ, should be >0"
