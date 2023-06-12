@@ -436,4 +436,125 @@ end
   @test isapprox(rate_num_i,rates_an[end];rtol=0.2)
 end
 
+
+@testset "Generalized plasticity, rate component" begin
+
+  function run_simulation!(network,n_spikes;show_progress=false,t_start::Float64=0.0)
+    t_now = t_start
+    for _ in 1:n_spikes
+      t_now = H.dynamics_step!(t_now,network)
+    end
+    return t_now
+  end
+  function ΔW_analytic_uncorrelated_symm(stpd_rule,rpost,rpre)
+    αpre = stpd_rule.αpre
+    αpost = stpd_rule.αpost
+    θ = stpd_rule.θ
+    bias = 2*(1+θ)
+    return αpre*rpre + αpost*rpost + rpre*rpost*bias
+  end
+  function ΔW_analytic_uncorrelated_asymm(stpd_rule,rpost,rpre)
+    αpre = stpd_rule.αpre
+    αpost = stpd_rule.αpost
+    θ = stpd_rule.θ
+    bias = (1+θ)
+    return αpre*rpre + αpost*rpost + rpre*rpost*bias
+  end
+
+  current_from_rates(rates::Vector{Float64},W::Matrix{Float64}) = (I-W)*rates
+  current_from_rates2D(re,ri,wie,wei) = 
+    (ret= current_from_rates([re,ri],[ 0.0 -abs(wei) ; wie 0.0]) ; (ret[1],ret[2]))
+
+  function compute_weight_update_givenrate(re,ri,wie,wei,plasticity_rule)
+    he,hi = current_from_rates2D(re,ri,wie,wei)
+    return compute_weight_update_givencurrent(he,hi,wie,wei,plasticity_rule)
+  end
+
+  function compute_weight_update_givencurrent(he::R,hi::R,wie::R,wei::R,plasticity_rule;
+      n_spikes=80_000,τker_e=50E-3,τker_i=30E-3) where R<:Real
+    ne,ni = 1,1
+    ps_e,tr_e = H.population_state_exp_and_trace(ne,τker_e)
+    ps_i,tr_i = H.population_state_exp_and_trace_inhibitory(ni,τker_i)
+
+    # Double connection: one not plastic, and one 
+    # not interacting, to measure plasticity only
+    conn_ie = H.ConnectionExpKernel(cat(wie;dims=2),tr_e)
+    conn_ei = H.ConnectionExpKernel(cat(wei;dims=2),tr_i)
+    conn_ei_for_plast = H.ConnectionNonInteracting(cat(100.0;dims=2),plasticity_rule)
+
+  # define populations
+    pop_e = H.PopulationExpKernel(ps_e,[he,],(conn_ei,ps_i),(conn_ei_for_plast,ps_i))
+    pop_i = H.PopulationExpKernel(ps_i,[hi,],(conn_ie,ps_e))
+    # define recorder:  
+    rec = H.RecFullTrain(n_spikes+1,2);
+    # define network:
+    netw = H.RecurrentNetworkExpKernel((pop_e,pop_i),(rec,));
+    t_end = run_simulation!(netw,n_spikes)
+    recc = H.get_content(rec)
+    rate_e = H.numerical_rates(recc,ne,t_end;pop_idx=1)[1]
+    rate_i = H.numerical_rates(recc,ni,t_end;pop_idx=2)[1]
+
+    ΔW = (conn_ei_for_plast.weights[1,1] - 100.0) / (t_end*plasticity_rule.A) 
+    return (ΔW=ΔW,rate_e=rate_e,rate_i=rate_i)
+  end
+
+
+  ##
+  # Test 1 : all parameters!
+
+  ntest = 50
+
+  ΔW_test_an = Vector{Float64}(undef,ntest)
+  ΔW_test_num = similar(ΔW_test_an)
+
+  alp_pre = rand(Uniform(-3.,3.),ntest) 
+  alp_post = rand(Uniform(-3.,3.),ntest) 
+
+  theta_test = rand(Uniform(-4.,0.),ntest)
+  gamma_test = rand(Uniform(1.01,30.),ntest)
+  A_test = rand(Uniform(1E-8,1E-5),ntest)
+
+  rats_pre = rand(Uniform(1.0,30.),ntest)
+  rats_post = rand(Uniform(1.0,30.),ntest)
+
+  for k in 1:ntest
+    _stdp_rule = H.PlasticitySymmetricSTDPX(A_test[k],theta_test[k],90E-3,gamma_test[k],
+      alp_pre[k],alp_post[k],1,1)
+    ΔW_test_an[k] = ΔW_analytic_uncorrelated_symm(_stdp_rule,rats_post[k],rats_pre[k])
+    ΔW_test_num[k] = compute_weight_update_givenrate(rats_post[k],rats_pre[k],
+      1E-6,1E-6,_stdp_rule).ΔW 
+  end
+
+  @show extrema(ΔW_test_an .- ΔW_test_num)
+  @test all(isapprox.(ΔW_test_an,ΔW_test_num,rtol=0.15))
+
+  #############
+
+
+  ntest = 50
+
+  ΔW_test_an = Vector{Float64}(undef,ntest)
+  ΔW_test_num = similar(ΔW_test_an)
+
+  alp_pre = rand(Uniform(-3.,3.),ntest) 
+  alp_post = rand(Uniform(-3.,3.),ntest) 
+
+  theta_test = rand(Uniform(-4.,0.),ntest)
+  gamma_test = rand(Uniform(1.01,30.),ntest)
+  A_test = rand(Uniform(1E-8,1E-5),ntest)
+
+  rats_pre = rand(Uniform(1.0,30.),ntest)
+  rats_post = rand(Uniform(1.0,30.),ntest)
+
+  for k in 1:ntest
+    _stdp_rule = H.PlasticityAsymmetricX(A_test[k],theta_test[k],90E-3,gamma_test[k],
+      alp_pre[k],alp_post[k],1,1)
+    ΔW_test_an[k] = ΔW_analytic_uncorrelated_asymm(_stdp_rule,rats_post[k],rats_pre[k])
+    ΔW_test_num[k] = compute_weight_update_givenrate(rats_post[k],rats_pre[k],
+      1E-6,1E-6,_stdp_rule).ΔW 
+  end
+  @show extrema(ΔW_test_an .- ΔW_test_num)
+  @test all(isapprox.(ΔW_test_an,ΔW_test_num,rtol=0.15))
+end
+
 ##
