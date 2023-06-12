@@ -137,7 +137,11 @@ for k in 1:ntest
 end
 
 plotvs(ΔW_test_an,ΔW_test_num)
-@test all(isapprox.(ΔW_test_an,ΔW_test_num,atol=10))
+@show maximum(absolute_errors(ΔW_test_an,ΔW_test_num))
+@show maximum(relative_errors(ΔW_test_an,ΔW_test_num))
+@test all(isapprox.(ΔW_test_an,ΔW_test_num,rtol=0.05))
+
+##
 
 #############
 
@@ -167,4 +171,8 @@ end
 
 plotvs(ΔW_test_an,ΔW_test_num)
 
-@test all(isapprox.(ΔW_test_an,ΔW_test_num,atol=10))
+@show maximum(absolute_errors(ΔW_test_an,ΔW_test_num))
+@show maximum(relative_errors(ΔW_test_an,ΔW_test_num))
+@test all(isapprox.(ΔW_test_an,ΔW_test_num,rtol=0.15))
+
+##
