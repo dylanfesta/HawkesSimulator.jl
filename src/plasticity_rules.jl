@@ -269,8 +269,8 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Intege
     update_now!(plast.post_minus_trace,k_post_spike)
   end
   if !iszero(k_pre_spike)
-    update_now!(plast.pre_plus_trace,k_post_spike)
-    update_now!(plast.pre_minus_trace,k_post_spike)
+    update_now!(plast.pre_plus_trace,k_pre_spike)
+    update_now!(plast.pre_minus_trace,k_pre_spike)
   end
   # update synapses
   weights=conn.weights

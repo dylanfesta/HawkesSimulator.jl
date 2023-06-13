@@ -98,6 +98,11 @@ mutable struct DoEveryDt{R} <: Recorder
   thing_to_do::Function
 end
 
+function DoEveryDt(thing_to_do::Function,Δt::R;
+    Tstart::Real=0.0,Tend::Real=Inf) where R<:Real
+  DoEveryDt(Δt,Tstart,Tend,-Inf,thing_to_do)
+end
+
 function reset!(rec::DoEveryDt)
   rec.t_last = -Inf
   return nothing

@@ -358,10 +358,11 @@ function call_for_each_compute_signal_upper(ret,t_now,idxneu,ps_post,::Tuple{},:
   return ret
 end
 
-function compute_rate_upper(t_now::Real,external_input::Real,pop::PopulationExpKernel, 
-    idxneu::Integer)
+function compute_rate_upper(t_now::R,external_input::R,pop::PopulationExpKernel, 
+    idxneu::Integer) where {R<:Real}
+  external_input_nz = max(external_input,eps(R)) # deals with negative inputs
   ps_post = pop.state
-  ret = call_for_each_compute_signal_upper(external_input,t_now,idxneu,ps_post,
+  ret = call_for_each_compute_signal_upper(external_input_nz,t_now,idxneu,ps_post,
     pop.connections,pop.pre_states)
   return apply_nonlinearity(ret,pop.nonlinearity)
 end
