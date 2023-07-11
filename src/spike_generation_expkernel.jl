@@ -428,23 +428,39 @@ end
 
 struct RecFullTrainContent
   timesneurons::NTuple{N,Tuple{Vector{Float64},Vector{Int64}}} where N
-  function RecFullTrainContent(r::RecFullTrain)
-    npops = length(r.timesneurons)
-    for p in 1:npops
-      _times = r.timesneurons[p][1]
-      _neus = r.timesneurons[p][2]
-      idx_keep = isfinite.(_times)
-      keepat!(_times,idx_keep)
-      keepat!(_neus,idx_keep)
-    end
-    new(r.timesneurons)
+end
+function RecFullTrainContent(r::RecFullTrain)
+  npops = length(r.timesneurons)
+  for p in 1:npops
+    _times = r.timesneurons[p][1]
+    _neus = r.timesneurons[p][2]
+    idx_keep = isfinite.(_times)
+    keepat!(_times,idx_keep)
+    keepat!(_neus,idx_keep)
   end
+  return RecFullTrainContent(r.timesneurons)
 end
 
 function get_content(rec::RecFullTrain)
   return RecFullTrainContent(rec)
 end
 
+function Base.vcat((trains::RecFullTrainContent)...)
+  npops = length(trains[1].timesneurons)
+  ret = map(1:npops) do p
+    alltimes = cat([tr.timesneurons[p][1] for tr in trains]...;dims=1)
+    allneus = cat([tr.timesneurons[p][2] for tr in trains]...;dims=1)
+    (alltimes,allneus)
+  end
+  if npops == 1
+    return RecFullTrainContent((Tuple(ret...),))
+  else
+    # Warning! Not tested!
+    rt = (ret...,)
+    rntups = convert( NTuple{npops,Tuple{Vector{Float64},Vector{Int64}}},rt)
+    return RecFullTrainContent(rntups)
+  end
+end
 
 function numerical_rates(rec::Union{RecFullTrain,RecFullTrainContent})
   @error "This might be the wrong function!"
