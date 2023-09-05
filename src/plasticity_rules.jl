@@ -414,6 +414,10 @@ function reset!(pl::PlasticitySymmetricSTDPX)
   return nothing
 end
 
+function area_under_curve(plast::PlasticitySymmetricSTDPX)
+  return 2*plast.A*(1+plast.θ)
+end
+
 
 function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
@@ -497,6 +501,9 @@ function reset!(pl::PlasticityAsymmetricX)
   return nothing
 end
 
+function area_under_curve(plast::PlasticityAsymmetricX)
+  return plast.A*(1+plast.θ)
+end
 
 function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
