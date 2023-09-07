@@ -439,6 +439,8 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     update_now!(plast.pre_plus_trace,k_pre_spike)
     update_now!(plast.pre_minus_trace,k_pre_spike)
   end
+  # used for scaling the alphas
+  Aabs = abs(plast.A)
   # update synapses
   weights=conn.weights
   npost,npre = size(weights)
@@ -447,7 +449,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for i in 1:npost
       wik = weights[i,k_pre_spike] 
       if !iszero(wik)
-        Δw = (  plast.A*plast.αpre + # add presynaptic firing bias
+        Δw = (  Aabs*plast.αpre + # add presynaptic firing bias
                 plast.post_plus_trace.val[i]*plast.Aplus +
                 plast.post_minus_trace.val[i]*plast.Aminus)
         weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
@@ -459,7 +461,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
     for j in 1:npre
       wkj = weights[k_post_spike,j] 
       if !iszero(wkj)
-        Δw = ( plast.A*plast.αpost + 
+        Δw = ( Aabs*plast.αpost + 
                plast.pre_plus_trace.val[j]*plast.Aplus +
                plast.pre_minus_trace.val[j]*plast.Aminus) 
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
@@ -517,6 +519,8 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Intege
   # increase the plasticity trace variables (if not zero)
   update_now!(plast.post_trace,k_post_spike)
   update_now!(plast.pre_trace,k_pre_spike)
+  # used to scale the alphas
+  Aabs = abs(plast.A)
   # update synapses
   weights=conn.weights
   npost,npre = size(weights)
@@ -526,7 +530,7 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Intege
       wik = weights[i,k_pre_spike] 
       if !iszero(wik)
         Δw = (  plast.Aminus*plast.post_trace.val[i]
-               + plast.A*plast.αpre) # add presynaptic firing bias
+               + Aabs*plast.αpre) # add presynaptic firing bias
         weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
       end
     end
@@ -537,7 +541,7 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Intege
       wkj = weights[k_post_spike,j] 
       if !iszero(wkj)
         Δw = (plast.Aplus*plast.pre_trace.val[j]
-               + plast.A*plast.αpost) # add postsynaptic firing bias
+               + Aabs*plast.αpost) # add postsynaptic firing bias
         weights[k_post_spike,j] =  plast.bounds(wkj,Δw)
       end
     end
