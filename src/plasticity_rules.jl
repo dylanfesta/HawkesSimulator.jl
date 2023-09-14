@@ -31,11 +31,11 @@ struct PlasticityBoundsLowHigh{R} <: PlasticityBounds{R}
 end
 @inline function (plb::PlasticityBoundsNonnegative{R})(w::R,Δw::R)::R where R<:Real
   ret = w+Δw
-  return max(100*eps(R),ret)
+  return max(100*eps(R),ret)::R
 end
 @inline function (plb::PlasticityBoundsLowHigh{R})(w::R,Δw::R)::R where R<:Real
   ret = w+Δw
-  return min(plb.high,max(plb.low,ret))
+  return min(plb.high,max(plb.low,ret))::R
 end
 
 # utility function (ALWAYS follow post<-pre , never pre,post)
@@ -65,7 +65,8 @@ end
     pspre::AbstractPopulationState,
     plast::PlasticityRule)
   k_post,k_pre = find_which_spiked(label_spike,neufire,pspost,pspre)
-  return plasticity_update!(tfire,k_post,k_pre,pspost,conn,pspre,plast)
+  plasticity_update!(tfire,k_post,k_pre,pspost,conn,pspre,plast)
+  return nothing
 end
 
 # signature for general Hawkes
@@ -73,7 +74,8 @@ end
     pspost::PopulationState,conn::Connection,pspre::PopulationState,
     plast::PlasticityRule)
   k_post,k_pre = find_which_spiked(t_spike,pspost,pspre)
-  return plasticity_update!(t_spike,k_post,k_pre,pspost,conn,pspre,plast)
+  plasticity_update!(t_spike,k_post,k_pre,pspost,conn,pspre,plast)
+  return nothing
 end
 
 # no plasticity
@@ -120,7 +122,7 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
       wik = weights[i,k_pre_spike] 
       if !iszero(wik)
         Δw = plast.traceminus.val[i]*plast.Aminus
-        weights[i,k_pre_spike] =  plast.bounds(wik,Δw)
+        weights[i,k_pre_spike] = plast.bounds(wik,Δw)
       end
     end
   end
