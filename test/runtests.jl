@@ -97,9 +97,9 @@ end
   popstate2 = H.PopulationState(mykernel2,N2)
 
   population1 = H.PopulationHawkes(popstate1,inputs1,
-    (H.ConnectionWeights(weights1),popstate1) )
+    (H.ConnectionDenseWeights(weights1),popstate1) )
   population2 = H.PopulationHawkes(popstate2,inputs2,
-    (H.ConnectionWeights(weights2),popstate2) )
+    (H.ConnectionDenseWeights(weights2),popstate2) )
 
   # multi-pop constructor
   network = H.RecurrentNetwork(population1,population2)
@@ -197,7 +197,7 @@ end
     state = H.PopulationState(H.InputUnit(gen),2)
     return H.PopulationInputTestWeights(state,connection_test)
   end
-  connection_test = H.ConnectionWeights(fill(0.0,2,2))
+  connection_test = H.ConnectionDenseWeights(fill(0.0,2,2))
   nreps = 100
   population = get_test_pop(0.5,nreps,2E-3,connection_test)
   population.state.unittype.spike_generator.trains

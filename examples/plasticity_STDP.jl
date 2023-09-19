@@ -46,7 +46,7 @@ function do_2by2_connection(τplus::R,A2plus::R,τminus::R,A2minus::R;w_start::R
   _plast = HawkesSimulator.PairSTDP(τplus,τminus,A2plus,A2minus,N,N)
   W = fill(w_start,N,N)
   W[diagind(W)] .= 0.0
-  return H.ConnectionWeights(W,_plast)
+  return H.ConnectionDenseWeights(W,_plast)
 end
 
 # this one generates spike trains, a network object, a weight recorder. It requres a connection
@@ -241,7 +241,7 @@ function do_2by2_connection_triplets(τplus::R,A2plus::R,τminus::R,A2minus::R,
   _plast = HawkesSimulator.PlasticityTriplets(τplus,τminus,τx,τy,A2plus,A3plus,A2minus,A3minus,N,N)
   W = fill(w_start,N,N)
   W[diagind(W)] .= 0.0
-  return H.ConnectionWeights(W,_plast)
+  return H.ConnectionDenseWeights(W,_plast)
 end
 
 
@@ -413,7 +413,7 @@ connection_test = let wmat =  fill(100.0,2,2)
   Aminus = -1E-1
   npost,npre = size(wmat)
   stdp_plasticity = H.PairSTDP(τplus,τminus,Aplus,Aminus,npost,npre)
-  H.ConnectionWeights(wmat,stdp_plasticity)
+  H.ConnectionDenseWeights(wmat,stdp_plasticity)
 end
 
 # let's do one run
@@ -503,7 +503,7 @@ connection_test = let wmat =  fill(100.0,2,2)
   wmat[diagind(wmat)] .= 0.0
   npost,npre = size(wmat)
   stdp_plasticity = H.SymmetricSTDP(myτplus,myτminus,myAplus,myAminus,npost,npre)
-  H.ConnectionWeights(wmat,stdp_plasticity)
+  H.ConnectionDenseWeights(wmat,stdp_plasticity)
 end
 
 theplot = let myrate = 0.1
@@ -550,7 +550,7 @@ connection_testX = let wmat =  fill(100.0,2,2)
   wmat[diagind(wmat)] .= 0.0
   npost,npre = size(wmat)
   _plasticity = H.PlasticitySymmetricSTDPX(A,θ,τ,γ,αpre,αpost,npost,npre)
-  H.ConnectionWeights(wmat,_plasticity)
+  H.ConnectionDenseWeights(wmat,_plasticity)
 end
 
 theplot = let myrate = 0.05

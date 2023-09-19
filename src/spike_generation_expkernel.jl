@@ -133,8 +133,8 @@ function set_initial_rates!(pop::PopulationExpKernel,rates::Union{Nothing,Vector
 end
 
 
-struct ConnectionExpKernel{N,PL<:NTuple{N,PlasticityRule},T} <: Connection
-  weights::Matrix{Float64}
+struct ConnectionExpKernel{W,NPL,PL<:NTuple{NPL,PlasticityRule},T} <: ConnectionWithWeights{W,NPL,PL}
+  weights::W
   pre_trace::T
   trace_proposal::Vector{Float64}
   plasticities::PL
@@ -184,6 +184,15 @@ end
 struct RecurrentNetworkExpKernel{N,TP<:NTuple{N,AbstractPopulation},NR,TR<:NTuple{NR,Recorder}}
   populations::TP
   recorders::TR
+  alloc_spikeproposals::Vector{Float64}
+  alloc_bestneurons::Vector{Int64}
+  function RecurrentNetworkExpKernel(populations::TP,recorders::TR) where {TP,TR}
+    npops = length(populations)
+    nrec = length(recorders)
+    alloc_spikeproposals = Vector{Float64}(undef,npops)
+    alloc_bestneurons = Vector{Int64}(undef,npops)
+    return new{npops,TP,nrec,TR}(populations,recorders,alloc_spikeproposals,alloc_bestneurons)
+  end
 end
 # one population constructor
 function RecurrentNetworkExpKernel(pop::AbstractPopulation,recorders...)
@@ -526,8 +535,8 @@ end
 
 function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
   npops = npopulations(ntw)
-  proposals_best = Vector{Float64}(undef,npops)
-  neuron_best = Vector{Int64}(undef,npops)
+  proposals_best = ntw.alloc_spikeproposals 
+  neuron_best = ntw.alloc_bestneurons
   # for each postsynaptic network, compute spike proposals 
   for (kn,pop) in enumerate(ntw.populations)
     nextspk =   compute_next_spike(t_now,pop)

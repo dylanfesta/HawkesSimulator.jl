@@ -24,27 +24,30 @@ abstract type PlasticityRule end
 struct NoPlasticity <: PlasticityRule end
 reset!(::NoPlasticity) = nothing
 
-struct ConnectionWeights{N,PL<:NTuple{N,PlasticityRule}} <: Connection
-  weights::Matrix{Float64}
+
+abstract type ConnectionWithWeights{W,NLP,PL} <: Connection end
+
+struct ConnectionDenseWeights{W<:Matrix,NPL,PL<:NTuple{NPL,PlasticityRule}} <: ConnectionWithWeights{W,NPL,PL}
+  weights::W
   plasticities::PL
 end
-function ConnectionWeights(weights::Matrix{Float64})
+function ConnectionDenseWeights(weights::Matrix{Float64})
   plast = NTuple{0,NoPlasticity}()
-  return ConnectionWeights(weights,plast)
+  return ConnectionDenseWeights(weights,plast)
 end
-function ConnectionWeights(weights::Matrix{Float64},
+function ConnectionDenseWeights(weights::Matrix{Float64},
      (plasticity_rules::PL where PL<:PlasticityRule)...)
-  return ConnectionWeights(weights,plasticity_rules)
+  return ConnectionDenseWeights(weights,plasticity_rules)
 end
-function reset!(conn::ConnectionWeights)
+function reset!(conn::ConnectionDenseWeights)
   reset!.(conn.plasticities)
   return nothing
 end
 
 # Neurons do not interact through this connection
 # Should be used to study plasticity of weights
-struct ConnectionNonInteracting{N,PL<:NTuple{N,PlasticityRule}} <: Connection
-  weights::Matrix{Float64}
+struct ConnectionNonInteracting{W<:Matrix,N,PL<:NTuple{N,PlasticityRule}} <: ConnectionWithWeights{W,N,PL}
+  weights::W
   plasticities::PL
 end
 function ConnectionNonInteracting(weights::Matrix{Float64})
@@ -59,8 +62,6 @@ function reset!(conn::ConnectionNonInteracting)
   reset!.(conn.plasticities)
   return nothing
 end
-
-
 
 # useful for the input
 struct ConnectionVoid <: Connection 
@@ -196,7 +197,7 @@ function RecurrentNetwork(state::PopulationState,weights::Matrix{Float64},
     nonlinearity=NLRelu())
   @assert size(weights,2) == length(input) 
   return RecurrentNetwork(
-    PopulationHawkes(state,ConnectionWeights(weights),input;
+    PopulationHawkes(state,ConnectionDenseWeights(weights),input;
     nonlinearity=nonlinearity))
 end
 

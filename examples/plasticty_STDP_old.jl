@@ -111,7 +111,7 @@ connection_test = let wmat =  fill(100.0,2,2)
   Aminus = -1E-1
   npost,npre = size(wmat)
   stdp_plasticity = H.PairSTDP(τplus,τminus,Aplus,Aminus,npost,npre)
-  H.ConnectionWeights(wmat,stdp_plasticity)
+  H.ConnectionDenseWeights(wmat,stdp_plasticity)
 end
 
 # let's do one run
@@ -210,7 +210,7 @@ connection_test = let wmat =  fill(100.0,2,2)
   A3minus = 2.3E-1*plast_eps
   plast_triplets = H.PlasticityTriplets(τplus,τminus,τx,τy,A2plus,A3plus,
     A2minus,A3minus,n_post,n_pre)
-  H.ConnectionWeights(wmat,plast_triplets)
+  H.ConnectionDenseWeights(wmat,plast_triplets)
 end
 
 # let's try single runs
