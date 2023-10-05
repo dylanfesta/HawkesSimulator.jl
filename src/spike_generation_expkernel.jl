@@ -415,6 +415,38 @@ end
 #   return nothing  
 # end
 
+struct RecSomeTrain{I,R} <: Recorder
+  nmaxrec::I
+  poprec::I
+  neusrec::Vector{I}
+  timesneurons::Tuple{Vector{R},Vector{I}}
+  krec::Ref{I}
+  Tstart::R
+  Tend::R
+end
+function RecSomeTrain(nrec,neurons_to_record;population_rec=1,Tstart=0.0,Tend=Inf)
+  krec = Ref(0)
+  alltimes = fill(NaN,nrec)
+  allneus = fill(-1,nrec)
+  return RecSomeTrain(nrec,population_rec,neurons_to_record,(alltimes,allneus),krec,Tstart,Tend)
+end
+struct RecSomeTrainContent
+  timesneurons::NTuple{N,Tuple{Vector{Float64},Vector{Int64}}} where N
+  Tstart::Float64
+  Tend::Float64
+end
+function RecSomeTrainContent(r::RecSomeTrain)
+  (_times,_neus) = r.timesneurons
+  idx_keep = isfinite.(_times)
+  keepat!(_times,idx_keep)
+  keepat!(_neus,idx_keep)
+  return RecSomeTrainContent(r.timesneurons,r.Tstart,r.Tend)
+end
+function get_content(rec::RecSomeTrain)
+  return RecSomeTrainContent(rec)
+end
+
+
 
 struct RecFullTrain{N} <: Recorder
   nrec::Int64
@@ -516,6 +548,28 @@ function get_trains(rec::Union{RecFullTrain,RecFullTrainContent};
 end
 
 # general signature: record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
+
+function record_stuff!(rec::RecSomeTrain,tfire::Real,popfire::Integer,
+    neufire::Integer,::Symbol,::RecurrentNetworkExpKernel)
+  # check all conditions
+  if ( (popfire != rec.poprec) || 
+      !(neufire in rec.neusrec) ||
+       (tfire < rec.Tstart) ||
+       (tfire > rec.Tend ))
+    return nothing
+  end
+  k = rec.krec[]+1
+  spiketimes,spikeneurons = rec.timesneurons
+  if !checkbounds(Bool,spiketimes,k)
+    @error "recorder full!"
+    return nothing
+  end
+  @inbounds spiketimes[k] = tfire
+  @inbounds spikeneurons[k] = neufire
+  rec.krec[] = k
+  return nothing
+end
+
 
 function record_stuff!(rec::RecFullTrain,tfire::Real,popfire::Integer,
     neufire::Integer,::Symbol,::RecurrentNetworkExpKernel)

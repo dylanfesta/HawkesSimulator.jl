@@ -16,6 +16,19 @@ using  HawkesSimulator; const global H = HawkesSimulator
 
 ##
 
+
+# this function runs the network dynamics
+# it simply runs one-spike iteration steps for the given number of spikes
+# returns the time at the end of the simulation
+function run_simulation!(network,num_spikes;t_start::Float64=0.0)
+  t_now = t_start
+  # H.reset!(network) # clear spike trains etc
+  for _ in 1:num_spikes
+    t_now = H.dynamics_step!(t_now,network)
+  end
+  return t_now
+end
+
 function mysim(γspikes::Real=1.5)
     # network parameters
     ne = 5
@@ -36,10 +49,35 @@ function mysim(γspikes::Real=1.5)
     connection_ee = H.ConnectionExpKernel(w_mat,trae)
     pop_e = H.PopulationExpKernel(pse,he_vec,(connection_ee,pse))
     n_spikes = Int(γspikes*1E7)
-    the_network = H.RecurrentNetworkExpKernel((pop_e,))
+    # add recorders
+    Δt_wrec = 2.0
+    Tstart_rec = 1*3600.0
+    Tend_rec =  2*3600.0
+    rec_spikes_e = H.RecSomeTrain(Int64(1E7),[1,2,3,4]; population_rec=1,
+        Tstart = Tstart_rec,Tend = Tend_rec)
+    rec_wee = H.RecTheseWeights(connection_ee.weights,Δt_wrec,Tend_rec;
+        Tstart=Tstart_rec)
+    the_network = H.RecurrentNetworkExpKernel((pop_e,),(rec_spikes_e,rec_wee))
     t_end = run_simulation!(the_network,n_spikes)
-    return t_end
+    rec_w_content = H.get_content(rec_wee)
+    t_w_end = rec_w_content.times[end]
+    return t_end,t_w_end
 end
 
+##
+mysim(0.5)
 
+##
 
+# run function one for precompilation
+@time mysim(1.0)
+@time mysim(10.0)
+@profview mysim(10.0)
+
+## allocation profiler!
+# Collect an allocation profile
+using Profile,PProf
+Profile.Allocs.clear()
+Profile.Allocs.@profile mysim(10.0)
+# Export pprof allocation profile and open interactive profiling web interface.
+PProf.Allocs.pprof()
