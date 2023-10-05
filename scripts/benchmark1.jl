@@ -1,5 +1,3 @@
-# compare exponential kernel specialized system with 
-# exponential kernel in unspecialized system
 
 using ProgressMeter
 using Test
@@ -18,41 +16,30 @@ using  HawkesSimulator; const global H = HawkesSimulator
 
 ##
 
-nneus = 2
-tauker = 0.5
-trace_ker = H.Trace(tauker,nneus,H.ForDynamics())
-trace_useless = H.Trace(123.0,nneus,H.ForPlasticity())
+function mysim(γspikes::Real=1.5)
+    # network parameters
+    ne = 5
+    τe = 10E-3
+    he = 5.0 
+    w_min = 1E-5
+    w_max = 1/(ne-1) - 1E-5
+    # set random weights
+    w_mat = w_min.+(w_max-w_min).*rand(Float64, (ne,ne))
+    # set zero diagonal
+    w_mat[diagind(w_mat)] .= 0.0
 
-popstate = H.PopulationStateExpKernel(nneus,trace_ker,trace_useless)
-myweights = [0.31 -0.3
-            0.9  -0.15]
-myinputs = [5.0 , 5.0]
-rates_analytic  = inv(I-myweights)*myinputs
-
-connection = H.ConnectionExpKernel(myweights,trace_ker)
-population = H.PopulationExpKernel(popstate,connection,myinputs)
-
-n_spikes = 10_000
-recorder = H.RecFullTrain(n_spikes,1)
-network = H.RecurrentNetworkExpKernel(population,recorder)
-
-function simulate1!(network,num_spikes)
-  t_now = 0.0
-  H.reset!(network) # clear spike trains etc
-  for _ in 1:num_spikes
-    t_now = H.dynamics_step!(t_now,network)
-  end
-  return t_now
+    # expected neural rates (analytic) at the beginning, and in case of saturation.
+    he_vec = fill(he,ne)
+    ## create a population state and a trace
+    # (the trace is necessary for the connection)
+    pse,trae = H.population_state_exp_and_trace(ne,τe;label="population_e")
+    connection_ee = H.ConnectionExpKernel(w_mat,trae)
+    pop_e = H.PopulationExpKernel(pse,he_vec,(connection_ee,pse))
+    n_spikes = Int(γspikes*1E7)
+    the_network = H.RecurrentNetworkExpKernel((pop_e,))
+    t_end = run_simulation!(the_network,n_spikes)
+    return t_end
 end
-function simulate2!(network,num_spikes)
-  t_now = 0.0
-  H.reset!(network) # clear spike trains etc
-  for _ in 1:num_spikes
-    t_now = H.dynamics_step_singlepopulation_multi!(t_now,network)
-  end
-  return t_now
-end
-##
-@benchmark simulate1!(network,n_spikes)
-##
-@benchmark simulate2!(network,n_spikes)
+
+
+
