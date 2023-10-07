@@ -58,6 +58,8 @@ function mysim(γspikes::Real=1.5)
     rec_wee = H.RecTheseWeights(connection_ee.weights,Δt_wrec,Tend_rec;
         Tstart=Tstart_rec)
     the_network = H.RecurrentNetworkExpKernel((pop_e,),(rec_spikes_e,rec_wee))
+    # the_network = H.RecurrentNetworkExpKernel((pop_e,),(rec_wee,))
+    # the_network = H.RecurrentNetworkExpKernel((pop_e,),(rec_spikes_e,))
     t_end = run_simulation!(the_network,n_spikes)
     rec_w_content = H.get_content(rec_wee)
     t_w_end = rec_w_content.times[end]
@@ -72,6 +74,9 @@ mysim(0.5)
 # run function one for precompilation
 @time mysim(1.0)
 @time mysim(10.0)
+
+##
+
 @profview mysim(10.0)
 
 ## allocation profiler!

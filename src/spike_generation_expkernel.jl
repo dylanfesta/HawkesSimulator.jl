@@ -586,43 +586,134 @@ function record_stuff!(rec::RecFullTrain,tfire::Real,popfire::Integer,
 end
 
 
+# To fix memory leaks
+function call_for_each_record_stuff!(recorders,tfire,popfire,neufire,label_fire,ntw)
+  record_stuff!(first(recorders),tfire,popfire,neufire,label_fire,ntw)
+  call_for_each_record_stuff!(Base.tail(recorders),tfire,popfire,neufire,label_fire,ntw)
+  return nothing
+end
+function call_for_each_record_stuff!(::Tuple{},args...)
+  return nothing
+end
+
+# Also to avoid memory leaks
+# sorry it is ugly :'-(
+# replacing this
+#  for pop in ntw.populations
+#    post = pop.state
+#    for (conn,pre) in zip(pop.connections,pop.pre_states)
+#      for plast in conn.plasticities
+#        plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
+#      end
+#    end
+#  end
+function multipop_call_for_plasticity_update!(tfire,label_fire,neufire,populations)
+  pop = first(populations)
+  tailpopulations = Base.tail(populations)  
+  post = pop.state
+  connections = pop.connections
+  pre_states  = pop.pre_states
+  @assert length(connections) == length(pre_states) # just for debugging
+  singlepop_call_for_plasticity_update!(tfire,label_fire,neufire,post,connections,pre_states)
+  if isempty(tailpopulations)
+    return nothing
+  else
+    multipop_call_for_plasticity_update!(tfire,label_fire,neufire,tailpopulations)
+  end
+end
+function singlepop_call_for_plasticity_update!(tfire,label_fire,neufire,post,
+    connections,pre_states)
+  connection = first(connections)
+  pre_state = first(pre_states)
+  tailpre_states = Base.tail(pre_states)
+  tailconnections = Base.tail(connections)  
+  plasticities = connection.plasticities
+  if !isempty(plasticities)
+    subcall_for_plasticity_update!(tfire,label_fire,neufire,post,
+      connection,pre_state,plasticities)
+  end
+  if isempty(tailconnections)
+    return nothing
+  else
+    singlepop_call_for_plasticity_update!(tfire,label_fire,neufire,post,
+      tailconnections,tailpre_states)
+  end
+end
+function subcall_for_plasticity_update!(tfire,label_fire,neufire,post,
+    conn,pre,plasticities)
+  plasticity = first(plasticities)
+  tailplasticities = Base.tail(plasticities)
+  plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plasticity)
+  if isempty(tailplasticities)
+    return nothing
+  else
+    subcall_for_plasticity_update!(tfire,label_fire,neufire,post,conn,pre,tailplasticities)
+  end
+end
+
+# no memory no leak!
+# for (kn,pop) in enumerate(ntw.populations)
+#   nextspk =   compute_next_spike(t_now,pop)
+#   (proposals_best[kn],neuron_best[kn]) = nextspk
+# end 
+# # select next spike (best across all input_networks)
+# (tfire,popfire) = findmin(proposals_best)
+# neufire = neuron_best[popfire]
+function call_for_compute_next_spike(t_now,populations,
+    currentpop,bestspiketime,bestpop,bestneuron)
+  pop = first(populations)
+  currentpop = currentpop+1
+  (bestspiketime_here,bestneuron_here) = compute_next_spike(t_now,pop)
+  if bestspiketime_here < bestspiketime
+    bestspiketime = bestspiketime_here
+    bestpop = currentpop
+    bestneuron = bestneuron_here
+  end
+  tailpopulations = Base.tail(populations)
+  if isempty(tailpopulations)
+    return (bestspiketime,bestpop,bestneuron)
+  else
+    return call_for_compute_next_spike(t_now,tailpopulations,
+      currentpop,bestspiketime,bestpop,bestneuron)
+  end
+end
+
+# Thou shall not leak!
+# for (kn,pop) in enumerate(ntw.populations)
+#   if kn==popfire
+#     burn_spike!(tfire,pop.state,neufire)
+#   else
+#     burn_spike!(tfire,pop.state)
+#   end
+# end
+function call_for_multipop_burn_spike!(currentpop::Integer,tfire,popfire,neufire,populations)
+  currentpop += 1
+  population = first(populations)
+  tailpopulations = Base.tail(populations)
+  if currentpop == popfire
+    burn_spike!(tfire,population.state,neufire)
+  else
+    burn_spike!(tfire,population.state)
+  end
+  if isempty(tailpopulations)
+    return nothing
+  else
+    return call_for_multipop_burn_spike!(currentpop,tfire,popfire,neufire,tailpopulations)
+  end
+end
+
 
 function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
-  npops = npopulations(ntw)
-  proposals_best = ntw.alloc_spikeproposals 
-  neuron_best = ntw.alloc_bestneurons
-  # for each postsynaptic network, compute spike proposals 
-  for (kn,pop) in enumerate(ntw.populations)
-    nextspk =   compute_next_spike(t_now,pop)
-    (proposals_best[kn],neuron_best[kn]) = nextspk
-  end 
-  # select next spike (best across all input_networks)
-  (tfire,popfire) = findmin(proposals_best)
-  neufire = neuron_best[popfire]
-  for (kn,pop) in enumerate(ntw.populations)
-    if kn==popfire
-      burn_spike!(tfire,pop.state,neufire)
-    else
-      burn_spike!(tfire,pop.state)
-    end
-  end
+  (tfire,popfire,neufire) = call_for_compute_next_spike(t_now,ntw.populations,0,Inf,-1,-1)
   # update stuff for that specific neuron/population state :
+  call_for_multipop_burn_spike!(0,tfire,popfire,neufire,ntw.populations)
   # apply plasticity rules ! Each rule in each connection in each population
   psfire = ntw.populations[popfire].state
   label_fire = psfire.label
-  for pop in ntw.populations
-    post = pop.state
-    for (conn,pre) in zip(pop.connections,pop.pre_states)
-      for plast in conn.plasticities
-        plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
-      end
-    end
-  end
+  multipop_call_for_plasticity_update!(tfire,label_fire,neufire,ntw.populations)
   # now trigger recorders. 
   # Recorder objects will take care of which population to target
-  for rec in ntw.recorders
-    record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
-  end
+  call_for_each_record_stuff!(ntw.recorders,tfire,popfire,neufire,label_fire,ntw)
   # update t_now 
   return tfire
 end
@@ -638,16 +729,16 @@ function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetworkExpKer
   burn_spike!(tfire,psfire,neufire)
   # apply plasticity rules ! Each rule in each connection in each population
   post = psfire
-  for (conn,pre) in zip(pop.connections,pop.pre_states)
-    for plast in conn.plasticities
-      plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
-    end
-  end
+  singlepop_call_for_plasticity_update!(tfire,label_fire,neufire,post,
+    pop.connections,pop.pre_states)
+  # for (conn,pre) in zip(pop.connections,pop.pre_states)
+  #   for plast in conn.plasticities
+  #     plasticity_update!(tfire,label_fire,neufire,post,conn,pre,plast)
+  #   end
+  # end
   # now trigger recorders. 
   # Recorder objects will take care of which population to target
-  for rec in ntw.recorders
-    record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
-  end
+  call_for_each_record_stuff(ntw.recorders,tfire,popfire,neufire,label_fire,ntw)
   # update t_now 
   return tfire
 end
