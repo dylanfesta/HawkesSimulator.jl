@@ -738,7 +738,7 @@ function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetworkExpKer
   # end
   # now trigger recorders. 
   # Recorder objects will take care of which population to target
-  call_for_each_record_stuff(ntw.recorders,tfire,popfire,neufire,label_fire,ntw)
+  call_for_each_record_stuff!(ntw.recorders,tfire,popfire,neufire,label_fire,ntw)
   # update t_now 
   return tfire
 end
