@@ -463,11 +463,13 @@ struct RecFullTrain{N} <: Recorder
   nrec::Int64
   timesneurons::NTuple{N,Tuple{Vector{Float64},Vector{Int64}}}
   k_rec::Vector{Int64}
+  Tstart::Float64
+  Tend::Float64
 end
-function RecFullTrain(nrec::Integer,(npops::Integer)=1)
+function RecFullTrain(nrec::Integer,(npops::Integer)=1;Tstart=0.0,Tend=Inf)
   timesneurons=ntuple(_-> (fill(NaN,nrec),fill(-1,nrec)),npops)
   k_rec = fill(0,npops)
-  RecFullTrain(nrec,timesneurons,k_rec)
+  RecFullTrain(nrec,timesneurons,k_rec,Tstart,Tend)
 end
 function reset!(rec::RecFullTrain)
   fill!(rec.k_rec,0)
@@ -480,8 +482,10 @@ end
 
 struct RecFullTrainContent
   timesneurons::NTuple{N,Tuple{Vector{Float64},Vector{Int64}}} where N
+  Tstart::Float64
+  Tend::Float64
 end
-function RecFullTrainContent(r::RecFullTrain)
+function RecFullTrainContent(r::RecFullTrain;Tstart=0.0,Tend=Inf)
   npops = length(r.timesneurons)
   for p in 1:npops
     _times = r.timesneurons[p][1]
@@ -490,7 +494,7 @@ function RecFullTrainContent(r::RecFullTrain)
     keepat!(_times,idx_keep)
     keepat!(_neus,idx_keep)
   end
-  return RecFullTrainContent(r.timesneurons)
+  return RecFullTrainContent(r.timesneurons,r.Tstart,r.Tend)
 end
 
 function get_content(rec::RecFullTrain)
@@ -581,9 +585,12 @@ function record_stuff!(rec::RecSomeTrain,tfire::Real,popfire::Integer,
   return nothing
 end
 
-
 function record_stuff!(rec::RecFullTrain,tfire::Real,popfire::Integer,
     neufire::Integer,::Symbol,::RecurrentNetworkExpKernel)
+  # still checks time boundaries! 
+  if (tfire < rec.Tstart) || (tfire > rec.Tend )
+    return nothing
+  end
   k = rec.k_rec[popfire]+1
   spiketimes,spikeneurons = rec.timesneurons[popfire]
   if !checkbounds(Bool,spiketimes,k)

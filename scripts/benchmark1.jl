@@ -1,4 +1,3 @@
-
 using ProgressMeter
 using Test
 using LinearAlgebra,Statistics,StatsBase,Distributions
