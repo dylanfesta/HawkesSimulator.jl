@@ -6,7 +6,6 @@ Here I use the rate-dependent STPD rules for some simple examples.
 # Initialization
 =#
 
-
 using LinearAlgebra,Statistics,StatsBase,Distributions
 using Plots,NamedColors,LaTeXStrings ; theme(:default) ; gr()
 
@@ -160,7 +159,7 @@ p2 = Wplot(W_end;title="final weights")
 #=
 ## Result
 
-Even without heterosynaptic effects, then netwrok reaches a symmetric
+Even without heterosynaptic effects, then network reaches a symmetric
 sparse structre. The number of connections depends on the target rate.
 
 But careful! When neuron correlate, they increase their target rate,

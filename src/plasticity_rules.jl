@@ -377,6 +377,30 @@ function reset!(pl::PlasticityInhibitory)
   return nothing
 end
 
+
+# needs to stay outside for optimization purposes
+@inline function weight_update_prefired!(weight_matrix::Matrix{Float64},
+    k_pre::Integer,i_post::Integer,plast::PlasticityInhibitory{Float64})::Nothing
+  wik = weight_matrix[i_post,k_pre] 
+  if !iszero(wik)
+    @inbounds Δw = plast.η*(plast.o.val[i_post]-plast.α)
+    @inbounds weight_matrix[i_post,k_pre] = plast.bounds(wik,Δw)
+  end
+  return nothing
+end
+
+# needs to stay outside for optimization purposes
+@inline function weight_update_postfired!(weight_matrix::Matrix{Float64},
+    k_post::Integer,j_pre::Integer,plast::PlasticityInhibitory{Float64})::Nothing
+  wkj = weight_matrix[k_post,j_pre]
+  if !iszero(wkj)
+    @inbounds Δw = plast.η*plast.r.val[j_pre]
+    @inbounds weight_matrix[k_post,j_pre] = plast.bounds(wkj,Δw)
+  end
+  return nothing
+end
+
+
 function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
     plast::PlasticityInhibitory{R}) where R<:Real
@@ -398,21 +422,13 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Intege
   if !iszero(k_pre_spike)
     # k is presynaptic: move vertically along k_pre column 
     for i_post in 1:npost
-      wik = weights[i_post,k_pre_spike]
-      if !iszero(wik)
-        Δw = plast.η*(plast.o.val[i_post]-plast.α)
-        weights[i_post,k_pre_spike] = plast.bounds(wik,Δw)
-      end
+      weight_update_prefired!(weights,k_pre_spike,i_post,plast)
     end
   end
   if !iszero(k_post_spike)
     # k is presynaptic: move vertically along k_pre column 
     for j_pre in 1:npre
-      wkj = weights[k_post_spike,j_pre]
-      if !iszero(wkj)
-        Δw = plast.η*plast.r.val[j_pre]
-        weights[k_post_spike,j_pre] = plast.bounds(wkj,Δw)
-      end
+      weight_update_postfired!(weights,k_post_spike,j_pre,plast)
     end
   end
   return nothing
@@ -533,7 +549,7 @@ end
 
 
 # Generalized STDP, symmetric
-struct PlasticitySTDPGL{R} <: PlasticityRule
+struct PlasticitySymmetricSTDPGL{R} <: PlasticityRule
   Azero::R      # global scaling
   Aplus::R
   Aminus::R
@@ -544,16 +560,16 @@ struct PlasticitySTDPGL{R} <: PlasticityRule
   αpost::R  # postsynaptic firing bias
   _Cplus::R  #  normalized potentiation
   _Cminus::R #  normalized depression
-  t_last_spike::R
   post_plus_trace::Trace{ForPlasticity,R}
   post_minus_trace::Trace{ForPlasticity,R}
   pre_plus_trace::Trace{ForPlasticity,R}
   pre_minus_trace::Trace{ForPlasticity,R}
-  weight_decay_post_trace::Trace{ForPlasticity,R}
+  t_last_posts::Vector{R}
   bounds::PlasticityBounds{R}
-  function PlasticitySTDPGL(Azero::R,Aplus::R,Aminus::R,τ::R,γ::R,
+  function PlasticitySymmetricSTDPGL(Azero::R,Aplus::R,Aminus::R,τ::R,γ::R,
       αzero::R,αpre::R,αpost::R,
       n_post::Integer,n_pre::Integer;
+      t_start::Real=0.0,
       plasticity_bounds=PlasticityBoundsNonnegative{R}()) where R
     @assert Azero >= 0 "Azero should be >= 0"
     @assert Aplus*Aminus <= 0 "Aplus and Aminus should have opposite signs"
@@ -561,35 +577,35 @@ struct PlasticitySTDPGL{R} <: PlasticityRule
     post_minus_t = Trace(τ*γ,n_post)
     pre_plus_t = Trace(τ,n_pre)
     pre_minus_t = Trace(τ*γ,n_pre)
-    weight_decay_post_trace = Trace(inv(αzero),1)
+    t_last_posts = fill(t_start,n_post)
     _Cplus = 0.5*Aplus/τ
     _Cminus = 0.5*Aminus/(γ*τ)
     @assert γ>0 "Something wrong with parameter γ, should be >0"
-    new{Float64}(A,Aplus,Aminus,τ,γ,
+    new{Float64}(Azero,Aplus,Aminus,τ,γ,
       αzero, αpre,αpost,
       _Cplus,_Cminus,
-      post_plus_t,post_minus_t,weight_decay_post_trace,
-      pre_plus_t,pre_minus_t,plasticity_bounds)
+      post_plus_t,post_minus_t,pre_plus_t,pre_minus_t,
+      t_last_posts,
+      plasticity_bounds)
   end
 end
-function reset!(pl::PlasticitySTDPGL)
+function reset!(pl::PlasticitySymmetricSTDPGL;t_start::Float64=0.0)
   reset!(pl.pre_plus_trace)
   reset!(pl.pre_minus_trace)
   reset!(pl.post_plus_trace)
   reset!(pl.post_minus_trace)
-  reset!(pl.weight_decay_post_trace)
-  pl.weight_decay_post_trace.val[1] = 1.0
+  pl.t_last_posts .= t_start
   return nothing
 end
 
-function area_under_curve(plast::PlasticitySTDPGL)
+function area_under_curve(plast::PlasticitySymmetricSTDPGL)
   return plast.Azero*(plast.Aplus+plast.Aminus)
 end
 
 
 # needs to stay outside for optimization purposes
 @inline function weight_update_prefired!(weight_matrix::Matrix{Float64},
-    k_pre::Integer,i_post::Integer,plast::PlasticitySTDPGL{Float64})::Nothing
+    k_pre::Integer,i_post::Integer,plast::PlasticitySymmetricSTDPGL{Float64})::Nothing
   wik = weight_matrix[i_post,k_pre] 
   if !iszero(wik)
     @inbounds Δw = plast.Azero* ( plast.αpre +
@@ -601,15 +617,18 @@ end
 end
 
 # needs to stay outside for optimization purposes
-@inline function weight_update_postfired!(weight_matrix::Matrix{Float64},
-    k_post::Integer,j_pre::Integer,plast::PlasticitySTDPGL{Float64})::Nothing
+@inline function weight_update_postfired!(Δt_last_post::Float64,
+    weight_matrix::Matrix{Float64},
+    k_post::Integer,j_pre::Integer,plast::PlasticitySymmetricSTDPGL{Float64})::Nothing
   wkj = weight_matrix[k_post,j_pre] 
   if !iszero(wkj)
-    wjk_new = wkj*plast.weight_decay_post_trace.val[1]
-    @inbounds Δw = plast.Azero*(Aabs*plast.αpost + 
-            plast.pre_plus_trace.val[j_pre]*plast._Cplus +
-            plast.pre_minus_trace.val[j_pre]*plast._Cminus) 
-    @inbounds weight_matrix[k_post,j_pre] =  plast.bounds(wjk_new,Δw)
+    @inbounds Δw = 
+            plast.Azero*(
+              plast.αzero*Δt_last_post +
+              plast.αpost + 
+              plast.pre_plus_trace.val[j_pre]*plast._Cplus +
+              plast.pre_minus_trace.val[j_pre]*plast._Cminus) 
+    @inbounds weight_matrix[k_post,j_pre] =  plast.bounds(wkj,Δw)
   end
   return nothing
 end
@@ -617,7 +636,7 @@ end
 
 function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
     ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
-    plast::PlasticitySTDPGL{R}) where R<:Real
+    plast::PlasticitySymmetricSTDPGL{R}) where R<:Real
   if iszero(k_pre_spike) && iszero(k_post_spike)
     return nothing
   end
@@ -630,8 +649,6 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   if !iszero(k_post_spike)
     update_now!(plast.post_plus_trace,k_post_spike)
     update_now!(plast.post_minus_trace,k_post_spike)
-    # propagate the decay trace
-    propagate!(t_spike,plast.weight_decay_post_trace)
   end
   if !iszero(k_pre_spike)
     update_now!(plast.pre_plus_trace,k_pre_spike)
@@ -648,16 +665,14 @@ function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Int
   end
   if !iszero(k_post_spike)
     # k is postsynaptic: go along columns of k_post row
+    Δt_last_post = t_spike-plast.t_last_posts[k_post_spike]
     for j in 1:npre
-      weight_update_postfired!(weights,k_post_spike,j,plast)
+      weight_update_postfired!(Δt_last_post,weights,k_post_spike,j,plast)
     end
-    # now I can update the decay trace 
-    update_now!(plast.weight_decay_post_trace,1)
+    plast.t_last_posts[k_post_spike] = t_spike
   end
   return nothing
 end
-
-
 
 
 # Generalized STDP, asymmetric (classical STDP Hebbian shape)
@@ -753,6 +768,128 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_spike::Intege
   end
   return nothing
 end
+
+
+# Generalized STDP, symmetric
+struct PlasticityAsymmetricSTDPGL{R} <: PlasticityRule
+  Azero::R      # global scaling
+  Aplus::R
+  Aminus::R
+  τ::R      # time constant 
+  γ::R      # time constant minus scaling
+  αzero::R  # constant leack term
+  αpre::R   # presynaptic firing bias
+  αpost::R  # postsynaptic firing bias
+  _Cplus::R  #  normalized potentiation
+  _Cminus::R #  normalized depression
+  post_trace::Trace{ForPlasticity,R}
+  pre_trace::Trace{ForPlasticity,R}
+  t_last_posts::Vector{R}
+  bounds::PlasticityBounds{R}
+  function PlasticityAsymmetricSTDPGL(Azero::R,Aplus::R,Aminus::R,τ::R,γ::R,
+      αzero::R,αpre::R,αpost::R,
+      n_post::Integer,n_pre::Integer;
+      t_start = 0.0,
+      plasticity_bounds=PlasticityBoundsNonnegative{R}()) where R
+    @assert Azero >= 0 "Azero should be >= 0"
+    @assert Aplus*Aminus <= 0 "Aplus and Aminus should have opposite signs"
+    post_t = Trace(τ*γ,n_post) # this is the A minus side
+    pre_t = Trace(τ,n_pre) # this is the A plus side
+    t_last_posts = fill(t_start,n_post)
+    _Cplus = Aplus/τ
+    _Cminus = Aminus/(γ*τ)
+    @assert γ>0 "Something wrong with parameter γ, should be >0"
+    new{Float64}(Azero,Aplus,Aminus,τ,γ,
+      αzero, αpre,αpost,
+      _Cplus,_Cminus,
+      post_t,pre_t,t_last_posts,
+      plasticity_bounds)
+  end
+end
+function reset!(pl::PlasticityAsymmetricSTDPGL;t_start::Real=0.0)
+  reset!(pl.pre_trace)
+  reset!(pl.post_trace)
+  pl.t_last_posts .= t_start
+  return nothing
+end
+
+function area_under_curve(plast::PlasticityAsymmetricSTDPGL)
+  return plast.Azero*(plast.Aplus+plast.Aminus)
+end
+
+
+# needs to stay outside for optimization purposes
+@inline function weight_update_prefired!(weight_matrix::Matrix{Float64},
+    k_pre::Integer,i_post::Integer,plast::PlasticityAsymmetricSTDPGL{Float64})::Nothing
+  wik = weight_matrix[i_post,k_pre] 
+  if !iszero(wik)
+    @inbounds Δw = plast.Azero*( plast.αpre +
+            plast.post_trace.val[i_post]*plast._Cminus)
+    @inbounds weight_matrix[i_post,k_pre] =  plast.bounds(wik,Δw)
+  end
+  return nothing
+end
+
+# needs to stay outside for optimization purposes
+@inline function weight_update_postfired!(Δt_last_post::Float64,
+    weight_matrix::Matrix{Float64},
+    k_post::Integer,j_pre::Integer,plast::PlasticityAsymmetricSTDPGL{Float64})::Nothing
+  wkj = weight_matrix[k_post,j_pre] 
+  if !iszero(wkj)
+    @inbounds Δw = plast.Azero*(
+            plast.αzero*Δt_last_post +
+            plast.αpost + 
+            plast.pre_trace.val[j_pre]*plast._Cplus)
+    @inbounds weight_matrix[k_post,j_pre] =  plast.bounds(wkj,Δw)
+  end
+  return nothing
+end
+
+
+function plasticity_update!(t_spike::Real,k_post_spike::Integer,k_pre_spike::Integer,
+    ::AbstractPopulationState,conn::Connection,::AbstractPopulationState,
+    plast::PlasticityAsymmetricSTDPGL{R}) where R<:Real
+  if iszero(k_pre_spike) && iszero(k_post_spike)
+    return nothing
+  end
+  # update all pre and post traces to t_now
+  propagate!(t_spike,plast.pre_trace)
+  propagate!(t_spike,plast.post_trace)
+  # increase the plasticity trace variables
+  if !iszero(k_post_spike)
+    update_now!(plast.post_plus_trace,k_post_spike)
+    update_now!(plast.post_minus_trace,k_post_spike)
+    # propagate the decay trace
+    propagate!(t_spike,plast.weight_decay_post_trace)
+  end
+  if !iszero(k_pre_spike)
+    update_now!(plast.pre_plus_trace,k_pre_spike)
+    update_now!(plast.pre_minus_trace,k_pre_spike)
+  end
+  # update synapses
+  weights=conn.weights
+  npost,npre = size(weights)
+  if !iszero(k_pre_spike)
+    # k is presynaptic: go along rows of k_pre column 
+    for i in 1:npost
+      weight_update_prefired!(weights,k_pre_spike,i,plast)
+    end
+  end
+  if !iszero(k_post_spike)
+    # k is postsynaptic: go along columns of k_post row
+    Δt_last_post = t_spike-plast.t_last_posts[k_post_spike]
+    for j in 1:npre
+      weight_update_postfired!(Δt_last_post,weights,k_post_spike,j,plast)
+    end
+    # update to current spike
+    t_last_posts[k_post_spike] = t_spike
+  end
+  return nothing
+end
+
+
+
+
 
 #=
 struct PlasticityAsymmetricAdaptiveX <: PlasticityRule

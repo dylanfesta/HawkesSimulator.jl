@@ -1,4 +1,3 @@
-
 #=
 # Spiking-based plasticity rules for two neurons
 

@@ -43,10 +43,7 @@ end
 
 ## Test the rate-dependent component of symmetric and antisymmetric STDP rate-dependent rules
 
-
-
-
-function run_simulation!(network,n_spikes;show_progress=false,t_start::Float64=0.0)
+function run_simulation!(network,n_spikes;t_start::Float64=0.0)
   t_now = t_start
   for _ in 1:n_spikes
     t_now = H.dynamics_step!(t_now,network)
