@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Comparison of STDP rules in the rate-dominated regime · HawkesSimulator.jl</title><meta name="title" content="Comparison of STDP rules in the rate-dominated regime · HawkesSimulator.jl"/><meta property="og:title" content="Comparison of STDP rules in the rate-dominated regime · HawkesSimulator.jl"/><meta property="twitter:title" content="Comparison of STDP rules in the rate-dominated regime · HawkesSimulator.jl"/><meta name="description" content="Documentation for HawkesSimulator.jl."/><meta property="og:description" content="Documentation for HawkesSimulator.jl."/><meta property="twitter:description" content="Documentation for HawkesSimulator.jl."/><meta property="og:url" content="https://dylanfesta.github.io/HawkesSimulator.jl/plasticity_STDP_ratecompare/"/><meta property="twitter:url" content="https://dylanfesta.github.io/HawkesSimulator.jl/plasticity_STDP_ratecompare/"/><link rel="canonical" href="https://dylanfesta.github.io/HawkesSimulator.jl/plasticity_STDP_ratecompare/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">HawkesSimulator.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Comparison of STDP rules in the rate-dominated regime</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Comparison of STDP rules in the rate-dominated regime</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/dylanfesta/HawkesSimulator.jl/blob/main/examples/plasticity_STDP_ratecompare.jl#" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Comparison-of-STDP-rules-in-the-rate-dominated-regime"><a class="docs-heading-anchor" href="#Comparison-of-STDP-rules-in-the-rate-dominated-regime">Comparison of STDP rules in the rate-dominated regime</a><a id="Comparison-of-STDP-rules-in-the-rate-dominated-regime-1"></a><a class="docs-heading-anchor-permalink" href="#Comparison-of-STDP-rules-in-the-rate-dominated-regime" title="Permalink"></a></h1><p>This example is both a proof of concept, and a way to test that ALL my STDP rules are implemented correctly.</p><p>I will first consider uncorrelated neurons, and the ΔW over time.</p><p>Then I will consider an I to E connection, and check that converges to the expected values.</p><p>This example also shows the different parametrizations that I used for each rulle (all different! LOL)</p><h1 id="Initialization"><a class="docs-heading-anchor" href="#Initialization">Initialization</a><a id="Initialization-1"></a><a class="docs-heading-anchor-permalink" href="#Initialization" title="Permalink"></a></h1><pre><code class="language-julia hljs">using LinearAlgebra,Statistics,StatsBase,Distributions
+using Plots,NamedColors,LaTeXStrings ; theme(:default) ; gr()
+
+using InvertedIndices
+using ProgressMeter
+using Random
+Random.seed!(0)
+
+using HawkesSimulator; const global H = HawkesSimulator</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">HawkesSimulator</code></pre><h1 id="Utility-functions"><a class="docs-heading-anchor" href="#Utility-functions">Utility functions</a><a id="Utility-functions-1"></a><a class="docs-heading-anchor-permalink" href="#Utility-functions" title="Permalink"></a></h1><pre><code class="language-julia hljs">&quot;&quot;&quot;
+  plotvs(x::AbstractArray{&lt;:Real},y::AbstractArray{&lt;:Real})
+
+Plots X vs Y, and also the identity line.
+&quot;&quot;&quot;
+function plotvs(x::AbstractArray{&lt;:Real},y::AbstractArray{&lt;:Real})
+  x,y=x[:],y[:]
+  @info &quot;&quot;&quot;
+  The max differences between the two are $(extrema(x .-y ))
+  &quot;&quot;&quot;
+  plt=plot()
+  scatter!(plt,x,y;leg=false,ratio=1,color=:black,opacity=0.5)
+  lm=xlims()
+  plot!(plt,identity,range(lm...;length=3);linestyle=:dash,
+    color=colorant&quot;dark orange&quot;, opacity=0.5,linewidth=3)
+  return plt
+end
+
+function absolute_errors(x::AbstractArray{&lt;:Real},y::AbstractArray{&lt;:Real})
+  x,y=x[:],y[:]
+  return abs.(x .-y )
+end
+function relative_errors(x::AbstractArray{&lt;:Real},y::AbstractArray{&lt;:Real})
+  x,y=x[:],y[:]
+  _m = @. max(abs(x),abs(y))
+  return @. abs((x-y)/_m)
+end</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">relative_errors (generic function with 1 method)</code></pre><h1 id="Part-1-,-uncorrelated-pair-of-neurons"><a class="docs-heading-anchor" href="#Part-1-,-uncorrelated-pair-of-neurons">Part 1 , uncorrelated pair of neurons</a><a id="Part-1-,-uncorrelated-pair-of-neurons-1"></a><a class="docs-heading-anchor-permalink" href="#Part-1-,-uncorrelated-pair-of-neurons" title="Permalink"></a></h1><h2 id="General-functions"><a class="docs-heading-anchor" href="#General-functions">General functions</a><a id="General-functions-1"></a><a class="docs-heading-anchor-permalink" href="#General-functions" title="Permalink"></a></h2><pre><code class="language-julia hljs">function run_simulation!(network,n_spikes::Integer;t_start::Float64=0.0)
+  t_now = t_start
+  for _ in 1:n_spikes
+    t_now = H.dynamics_step!(t_now,network)
+  end
+  return t_now
+end
+
+function compute_weight_update(hvec::Vector{R},plasticity_rule;
+    wval = 1000.0,
+    n_spikes::Integer=80_000,τker::Float64=50E-3) where R&lt;:Real
+  ps,tr = H.population_state_exp_and_trace(2,τker)
+  wmat = [0.0 wval; wval 0.0]
+  conn = H.ConnectionNonInteracting(wmat,plasticity_rule)
+  pop = H.PopulationExpKernel(ps,hvec,(conn,ps))
+  H.set_initial_rates!(pop,hvec)
+  rec = H.RecFullTrain(n_spikes+1,1)
+  netw = H.RecurrentNetworkExpKernel(pop,rec)
+  t_end = run_simulation!(netw,n_spikes)
+  recc = H.get_content(rec)
+  rates = H.numerical_rates(recc,2,t_end;pop_idx=1)
+  ΔW1 = (conn.weights[2,1] - wval) / t_end
+  ΔW2 = (conn.weights[1,2] - wval) / t_end
+  ΔW_avg = mean([ΔW1,ΔW2])
+  return (ΔW1=ΔW1,ΔW2 = ΔW2,ΔW_avg = ΔW_avg,rates = rates)
+end
+
+
+#=  ## Start with Vogels et al. 2011
+
+The average change of weight should be
+$ B r_{\text{pre}}  r_{\text{post}} - \eta\, \alpha\,r_{\text{pre}}$.
+Where the area under the curve  $B$ is $B = 2 \eta \tau$  and
+$\alpha = 2 r_{\text{targ}}\, \tau$.
+
+Putting them together we get:
+```math
+\Delta W = 2\;\eta\,\tau \, r_{\text{pre}} \; (r_{\text{post}} -  r_{\text{targ}})$
+```
+As expected, the weight is tracking the difference between the
+target rate and the actual postsynaptic rate.
+=#
+
+function analyticΔW(plast::H.PlasticityInhibitory,
+    rpre::Real,rpost::Real)
+  rtarg = 0.5*plast.α/plast.τ
+  return 2.0*plast.η*plast.τ*rpre*(rpost-rtarg)
+end
+
+function do_test_for_vogels(n::Integer;n_spikes::Integer=100_000)
+  rpres = rand(Uniform(20.0,50.0),n)
+  rposts = rand(Uniform(20.0,50.0),n)
+  rtargs = rand(Uniform(10.0,80.0),n)
+  τs = rand(Uniform(0.1,0.5),n)
+  η = 1E-8
+  anΔWs = Vector{Float64}(undef,n)
+  numΔWs = similar(anΔWs)
+  for k in 1:n
+    plast = H.PlasticityInhibitory(τs[k],η,2,2;r_target=rtargs[k])
+    anΔWs[k] = analyticΔW(plast,rpres[k],rposts[k])
+    numΔWs[k] = compute_weight_update([rpres[k],rposts[k]],plast;
+      wval=1E4,
+      n_spikes=n_spikes).ΔW1
+  end
+  anΔWs ./= η
+  numΔWs ./= η
+  return (anΔWs=anΔWs,numΔWs=numΔWs)
+end
+
+
+out = do_test_for_vogels(80)
+_ = let plt = plotvs(out.anΔWs,out.numΔWs)
+  xlabel!(plt,&quot;analytic ΔW&quot;)
+  ylabel!(plt,&quot;numerical ΔW&quot;)
+  plt
+end
+
+
+#=  ## Now symmetric and antisymmetric STDPX rules
+
+These are expanded versions of STDP that contain both rate-dependent
+and correlation-dependent terms. Here we ignore the latter.
+
+```math
+\Delta W =  A \; \left(  \alpha_{\text{pre}} \, r_{\text{pre}} + \alpha_{\text{post}} \, r_{\text{post}} +
+ B \, r_{\text{pre}} \, r_{\text{post}} \right)
+```
+With $ B= 2\;(1+\theta)$ for symmetric   and $ B = (1+\theta)$ for antisymmetric.
+=#
+
+function analyticΔW(plast::H.PlasticitySymmetricSTDPX,
+    rpre::Real,rpost::Real)
+  B = 2.0*(1.0+plast.θ)
+  return plast.A * (plast.αpre*rpre + plast.αpost*rpost + B*rpre*rpost)
+end
+
+function analyticΔW(plast::H.PlasticityAsymmetricX,
+    rpre::Real,rpost::Real)
+  B = (1.0+plast.θ) # only difference with symmetric
+  return plast.A * (plast.αpre*rpre + plast.αpost*rpost + B*rpre*rpost)
+end
+
+function do_test_for_symmetricX(n::Integer;n_spikes::Integer=100_000)
+  rpres = rand(Uniform(20.0,50.0),n)
+  rposts = rand(Uniform(20.0,50.0),n)
+  A = 1E-6
+  thetas = rand(Uniform(-1.0,0.0),n)
+  τs = rand(Uniform(0.1,0.5),n)
+  gammas = rand(Uniform(1.5,20.0),n)
+  αpres = rand(Uniform(-3.0,3.0),n)
+  αposts = rand(Uniform(-3.0,3.0),n)
+  anΔWs = Vector{Float64}(undef,n)
+  numΔWs = similar(anΔWs)
+  for k in 1:n
+    plast = H.PlasticitySymmetricSTDPX(A,thetas[k],τs[k],gammas[k],αpres[k],αposts[k],2,2)
+    anΔWs[k] = analyticΔW(plast,rpres[k],rposts[k])
+    numΔWs[k] = compute_weight_update([rpres[k],rposts[k]],plast;
+      wval=1E4,
+      n_spikes=n_spikes).ΔW1
+  end
+  anΔWs ./= A
+  numΔWs ./= A
+  return (anΔWs=anΔWs,numΔWs=numΔWs)
+end
+
+
+out = do_test_for_symmetricX(80)
+_ = let plt = plotvs(out.anΔWs,out.numΔWs)
+  xlabel!(plt,&quot;analytic ΔW&quot;)
+  ylabel!(plt,&quot;numerical ΔW&quot;)
+  plt
+end</code></pre><img src="992cf0a9.svg" alt="Example block output"/><p>And the antisymmetric one. The function is the same, except for plasticity type But γ now can also be less than 1.</p><pre><code class="language-julia hljs">function do_test_for_asymmetricX(n::Integer;n_spikes::Integer=100_000)
+  rpres = rand(Uniform(20.0,50.0),n)
+  rposts = rand(Uniform(20.0,50.0),n)
+  A = 1E-6
+  thetas = rand(Uniform(-1.0,0.0),n)
+  τs = rand(Uniform(0.1,0.5),n)
+  gammas = rand(Uniform(0.1,5.0),n)
+  αpres = rand(Uniform(-3.0,3.0),n)
+  αposts = rand(Uniform(-3.0,3.0),n)
+  anΔWs = Vector{Float64}(undef,n)
+  numΔWs = similar(anΔWs)
+  for k in 1:n
+    plast = H.PlasticityAsymmetricX(A,thetas[k],τs[k],gammas[k],αpres[k],αposts[k],2,2)
+    anΔWs[k] = analyticΔW(plast,rpres[k],rposts[k])
+    numΔWs[k] = compute_weight_update([rpres[k],rposts[k]],plast;
+      wval=1E4,
+      n_spikes=n_spikes).ΔW1
+  end
+  anΔWs ./= A
+  numΔWs ./= A
+  return (anΔWs=anΔWs,numΔWs=numΔWs)
+end
+
+out = do_test_for_asymmetricX(80)
+_ = let plt = plotvs(out.anΔWs,out.numΔWs)
+  xlabel!(plt,&quot;analytic ΔW&quot;)
+  ylabel!(plt,&quot;numerical ΔW&quot;)
+  plt
+end
+
+
+
+#=  ## Now symmetric and antisymmetric generalized STDP rules with leak terms
+
+These rules are simular to the above, but contain and additional (constant) leak term.
+
+Also, I slightly changed the parametrization, because.
+
+```math
+\Delta W =  Azero \; \left( \alpha_{0} +  \alpha_{\text{pre}} \, r_{\text{pre}} + \alpha_{\text{post}} \, r_{\text{post}} +
+ B \, r_{\text{pre}} \, r_{\text{post}} \right)
+```
+With $B = (Aplus+Aminus)$ for both symmetric and antisymmetric.
+So it&#39;s really the same equation for both.
+=#
+
+
+function analyticΔW(plast::Union{H.PlasticitySymmetricSTDPGL,H.PlasticityAsymmetricSTDPGL},
+    rpre::Real,rpost::Real)
+  B = plast.Aplus + plast.Aminus
+  return plast.Azero * (plast.αzero + plast.αpre*rpre + plast.αpost*rpost + B*rpre*rpost)
+end
+
+function do_test_for_symmetricGL(n::Integer;n_spikes::Integer=100_000)
+  rpres = rand(Uniform(20.0,50.0),n)
+  rposts = rand(Uniform(20.0,50.0),n)
+  Azero = 1E-6
+  Aplusses = rand(Uniform(0.,0.3),n)
+  Aminuses = rand(Uniform(-0.3,0.),n)
+  τs = rand(Uniform(0.1,0.5),n)
+  gammas = rand(Uniform(1.1,20.0),n)
+  αzeros = rand(Uniform(-5.0,5.0),n)
+  αpres = rand(Uniform(-3.0,3.0),n)
+  αposts = rand(Uniform(-3.0,3.0),n)
+  anΔWs = Vector{Float64}(undef,n)
+  numΔWs = similar(anΔWs)
+  for k in 1:n
+    plast = H.PlasticitySymmetricSTDPGL(Azero,Aplusses[k],Aminuses[k],
+      τs[k],gammas[k],αzeros[k],αpres[k],αposts[k],2,2)
+    anΔWs[k] = analyticΔW(plast,rpres[k],rposts[k])
+    numΔWs[k] = compute_weight_update([rpres[k],rposts[k]],plast;
+      wval=1E4,
+      n_spikes=n_spikes).ΔW1
+  end
+  anΔWs ./= Azero
+  numΔWs ./= Azero
+  return (anΔWs=anΔWs,numΔWs=numΔWs)
+end
+
+out = do_test_for_symmetricGL(80)
+_ = let plt = plotvs(out.anΔWs,out.numΔWs)
+  xlabel!(plt,&quot;analytic ΔW&quot;)
+  ylabel!(plt,&quot;numerical ΔW&quot;)
+  plt
+end</code></pre><img src="3e5869e1.svg" alt="Example block output"/><hr/><p><em>This page was generated using <a href="https://github.com/fredrikekre/Literate.jl">Literate.jl</a>.</em></p></article><nav class="docs-footer"><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="auto">Automatic (OS)</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.2.1 on <span class="colophon-date" title="Friday 8 December 2023 11:18">Friday 8 December 2023</span>. Using Julia version 1.8.5.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
