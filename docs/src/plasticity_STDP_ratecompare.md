@@ -92,9 +92,9 @@ function compute_weight_update(hvec::Vector{R},plasticity_rule;
   ΔW_avg = mean([ΔW1,ΔW2])
   return (ΔW1=ΔW1,ΔW2 = ΔW2,ΔW_avg = ΔW_avg,rates = rates)
 end
+````
 
-
-#=  ## Start with Vogels et al. 2011
+## Start with Vogels et al. 2011
 
 The average change of weight should be
 $ B r_{\text{pre}}  r_{\text{post}} - \eta\, \alpha\,r_{\text{pre}}$.
@@ -107,8 +107,8 @@ Putting them together we get:
 ```
 As expected, the weight is tracking the difference between the
 target rate and the actual postsynaptic rate.
-=#
 
+````@example plasticity_STDP_ratecompare
 function analyticΔW(plast::H.PlasticityInhibitory,
     rpre::Real,rpost::Real)
   rtarg = 0.5*plast.α/plast.τ
@@ -142,9 +142,9 @@ _ = let plt = plotvs(out.anΔWs,out.numΔWs)
   ylabel!(plt,"numerical ΔW")
   plt
 end
+````
 
-
-#=  ## Now symmetric and antisymmetric STDPX rules
+## Now symmetric and antisymmetric STDPX rules
 
 These are expanded versions of STDP that contain both rate-dependent
 and correlation-dependent terms. Here we ignore the latter.
@@ -154,8 +154,8 @@ and correlation-dependent terms. Here we ignore the latter.
  B \, r_{\text{pre}} \, r_{\text{post}} \right)
 ```
 With $ B= 2\;(1+\theta)$ for symmetric   and $ B = (1+\theta)$ for antisymmetric.
-=#
 
+````@example plasticity_STDP_ratecompare
 function analyticΔW(plast::H.PlasticitySymmetricSTDPX,
     rpre::Real,rpost::Real)
   B = 2.0*(1.0+plast.θ)
@@ -234,9 +234,8 @@ _ = let plt = plotvs(out.anΔWs,out.numΔWs)
   plt
 end
 
-
-
-#=  ## Now symmetric and antisymmetric generalized STDP rules with leak terms
+#=
+# Now symmetric and antisymmetric generalized STDP rules with leak terms
 
 These rules are simular to the above, but contain and additional (constant) leak term.
 

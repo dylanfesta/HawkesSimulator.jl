@@ -88,7 +88,8 @@ end
 
 ## #src
 
-#=  ## Start with Vogels et al. 2011
+#=
+## Start with Vogels et al. 2011
 
 The average change of weight should be 
 $ B r_{\text{pre}}  r_{\text{post}} - \eta\, \alpha\,r_{\text{pre}}$.
@@ -139,7 +140,8 @@ _ = let plt = plotvs(out.anΔWs,out.numΔWs)
 end
 
 
-#=  ## Now symmetric and antisymmetric STDPX rules
+#=
+## Now symmetric and antisymmetric STDPX rules
 
 These are expanded versions of STDP that contain both rate-dependent
 and correlation-dependent terms. Here we ignore the latter.
@@ -228,9 +230,8 @@ _ = let plt = plotvs(out.anΔWs,out.numΔWs)
   plt
 end
 
-
-
-#=  ## Now symmetric and antisymmetric generalized STDP rules with leak terms
+#= 
+## Now symmetric and antisymmetric generalized STDP rules with leak terms
 
 These rules are simular to the above, but contain and additional (constant) leak term. 
 
