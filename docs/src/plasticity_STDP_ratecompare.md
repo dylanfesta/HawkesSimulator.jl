@@ -1,4 +1,7 @@
-#=
+```@meta
+EditURL = "../../examples/plasticity_STDP_ratecompare.jl"
+```
+
 # Comparison of STDP rules in the rate-dominated regime
 
 This example is both a proof of concept, and a way to test that ALL
@@ -13,8 +16,8 @@ This example also shows the different parametrizations that I
 used for each rulle (all different! LOL)
 
 # Initialization
-=#
 
+````@example plasticity_STDP_ratecompare
 using LinearAlgebra,Statistics,StatsBase,Distributions
 using Plots,NamedColors,LaTeXStrings ; theme(:default) ; gr()
 
@@ -24,9 +27,11 @@ using Random
 Random.seed!(0)
 
 using HawkesSimulator; const global H = HawkesSimulator
+````
 
-# # Utility functions
+# Utility functions
 
+````@example plasticity_STDP_ratecompare
 """
   plotvs(x::AbstractArray{<:Real},y::AbstractArray{<:Real})
 
@@ -54,11 +59,13 @@ function relative_errors(x::AbstractArray{<:Real},y::AbstractArray{<:Real})
   _m = @. max(abs(x),abs(y))
   return @. abs((x-y)/_m)
 end
+````
 
-## #src
-# # Part 1 , uncorrelated pair of neurons
+# Part 1 , uncorrelated pair of neurons
 
-# ## General functions
+## General functions
+
+````@example plasticity_STDP_ratecompare
 function run_simulation!(network,n_spikes::Integer;t_start::Float64=0.0)
   t_now = t_start
   for _ in 1:n_spikes
@@ -73,30 +80,41 @@ function compute_weight_update(hvec::Vector{R},plasticity_rule;
   ps,tr = H.population_state_exp_and_trace(2,τker)
   wmat = [0.0 wval; wval 0.0]
   conn = H.ConnectionNonInteracting(wmat,plasticity_rule)
-  # define populations
+````
+
+define populations
+
+````@example plasticity_STDP_ratecompare
   pop = H.PopulationExpKernel(ps,hvec,(conn,ps))
   H.set_initial_rates!(pop,hvec)
-  # define recorder:  
+````
+
+define recorder:
+
+````@example plasticity_STDP_ratecompare
   rec = H.RecFullTrain(n_spikes+1,1)
-  # define network:
+````
+
+define network:
+
+````@example plasticity_STDP_ratecompare
   netw = H.RecurrentNetworkExpKernel(pop,rec)
   t_end = run_simulation!(netw,n_spikes)
   recc = H.get_content(rec)
   rates = H.numerical_rates(recc,2,t_end;pop_idx=1)
   ΔW1 = (conn.weights[2,1] - wval) / t_end
-  ΔW2 = (conn.weights[1,2] - wval) / t_end 
+  ΔW2 = (conn.weights[1,2] - wval) / t_end
   ΔW_avg = mean([ΔW1,ΔW2])
   return (ΔW1=ΔW1,ΔW2 = ΔW2,ΔW_avg = ΔW_avg,rates = rates)
 end
 
-## #src
 
 #=  ## Start with Vogels et al. 2011
 
-The average change of weight should be 
+The average change of weight should be
 $ B r_{\text{pre}}  r_{\text{post}} - \eta\, \alpha\,r_{\text{pre}}$.
-Where the area under the curve  $B$ is $B = 2 \eta \tau$  and 
-$\alpha = 2 r_{\text{targ}}\, \tau$. 
+Where the area under the curve  $B$ is $B = 2 \eta \tau$  and
+$\alpha = 2 r_{\text{targ}}\, \tau$.
 
 Putting them together we get:
 ```math
@@ -114,7 +132,7 @@ end
 
 function do_test_for_vogels(n::Integer;n_spikes::Integer=100_000)
   rpres = rand(Uniform(20.0,50.0),n)
-  rposts = rand(Uniform(20.0,50.0),n) 
+  rposts = rand(Uniform(20.0,50.0),n)
   rtargs = rand(Uniform(10.0,80.0),n)
   τs = rand(Uniform(0.1,0.5),n)
   η = 1E-8
@@ -132,7 +150,6 @@ function do_test_for_vogels(n::Integer;n_spikes::Integer=100_000)
   return (anΔWs=anΔWs,numΔWs=numΔWs)
 end
 
-## #src
 
 out = do_test_for_vogels(80)
 _ = let plt = plotvs(out.anΔWs,out.numΔWs)
@@ -151,7 +168,7 @@ and correlation-dependent terms. Here we ignore the latter.
 \Delta W =  A \; \left(  \alpha_{\text{pre}} \, r_{\text{pre}} + \alpha_{\text{post}} \, r_{\text{post}} +
  B \, r_{\text{pre}} \, r_{\text{post}} \right)
 ```
-With $ B= 2\;(1+\theta)$ for symmetric   and $ B = (1+\theta)$ for antisymmetric. 
+With $ B= 2\;(1+\theta)$ for symmetric   and $ B = (1+\theta)$ for antisymmetric.
 =#
 
 function analyticΔW(plast::H.PlasticitySymmetricSTDPX,
@@ -189,7 +206,6 @@ function do_test_for_symmetricX(n::Integer;n_spikes::Integer=100_000)
   return (anΔWs=anΔWs,numΔWs=numΔWs)
 end
 
-## #src
 
 out = do_test_for_symmetricX(80)
 _ = let plt = plotvs(out.anΔWs,out.numΔWs)
@@ -197,10 +213,12 @@ _ = let plt = plotvs(out.anΔWs,out.numΔWs)
   ylabel!(plt,"numerical ΔW")
   plt
 end
+````
 
-# And the antisymmetric one. The function is the same, except for plasticity type
-# But γ now can also be less than 1.
+And the antisymmetric one. The function is the same, except for plasticity type
+But γ now can also be less than 1.
 
+````@example plasticity_STDP_ratecompare
 function do_test_for_asymmetricX(n::Integer;n_spikes::Integer=100_000)
   rpres = rand(Uniform(20.0,50.0),n)
   rposts = rand(Uniform(20.0,50.0),n)
@@ -235,7 +253,7 @@ end
 
 #=  ## Now symmetric and antisymmetric generalized STDP rules with leak terms
 
-These rules are simular to the above, but contain and additional (constant) leak term. 
+These rules are simular to the above, but contain and additional (constant) leak term.
 
 Also, I slightly changed the parametrization, because.
 
@@ -243,7 +261,7 @@ Also, I slightly changed the parametrization, because.
 \Delta W =  Azero \; \left( \alpha_{0} +  \alpha_{\text{pre}} \, r_{\text{pre}} + \alpha_{\text{post}} \, r_{\text{post}} +
  B \, r_{\text{pre}} \, r_{\text{post}} \right)
 ```
-With $B = (Aplus+Aminus)$ for both symmetric and antisymmetric. 
+With $B = (Aplus+Aminus)$ for both symmetric and antisymmetric.
 So it's really the same equation for both.
 =#
 
@@ -286,8 +304,9 @@ _ = let plt = plotvs(out.anΔWs,out.numΔWs)
   ylabel!(plt,"numerical ΔW")
   plt
 end
+````
 
+---
 
-## publish in documentation #src
-thisfile = joinpath(splitpath(@__FILE__)[end-1:end]...) #src
-using Literate; Literate.markdown(thisfile,"docs/src";documenter=true,repo_root_url="https://github.com/dylanfesta/HawkesSimulator.jl/blob/master") #src
+*This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
+

@@ -16,6 +16,7 @@ CurrentModule = HawkesSimulator
 1. [**Show that rate in Hawkes is equivalent to linear network, in a 2D model**](./hawkes_vs_2D_linear.md)
 1. [**Plasticity, pairwise STDP and triplet-based**](./plasticity_STDP.md)
 1. [**Plasticity, rate-dependent STDP**](./plasticity_rate_based.md)
+1. [**Plasticity, match rate-components of different STDP rules**](./plasticity_STDP_ratecompare.md)
 
 ## Index
 
