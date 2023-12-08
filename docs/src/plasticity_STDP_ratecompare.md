@@ -80,24 +80,9 @@ function compute_weight_update(hvec::Vector{R},plasticity_rule;
   ps,tr = H.population_state_exp_and_trace(2,τker)
   wmat = [0.0 wval; wval 0.0]
   conn = H.ConnectionNonInteracting(wmat,plasticity_rule)
-````
-
-define populations
-
-````@example plasticity_STDP_ratecompare
   pop = H.PopulationExpKernel(ps,hvec,(conn,ps))
   H.set_initial_rates!(pop,hvec)
-````
-
-define recorder:
-
-````@example plasticity_STDP_ratecompare
   rec = H.RecFullTrain(n_spikes+1,1)
-````
-
-define network:
-
-````@example plasticity_STDP_ratecompare
   netw = H.RecurrentNetworkExpKernel(pop,rec)
   t_end = run_simulation!(netw,n_spikes)
   recc = H.get_content(rec)
