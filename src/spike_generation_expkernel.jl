@@ -292,8 +292,8 @@ propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,
   wij_all = view(conn.weights,idx_post,:)
   return -dot(wij_all,tra_tnow)
 end
-propagated_signal_upper(::Real,::Integer,::PopulationStateMarkovian,::Connection,
-  ::PopulationStateExpKernelInhibitory) = 0.0
+propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,d::Connection,
+  e::PopulationStateExpKernelInhibitory) = propagated_signal(a,b,c,d,e)
 
 # this one below is proably not needed
 propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
@@ -384,7 +384,9 @@ function compute_rate_upper(t_now::R,external_input::R,pop::PopulationExpKernel,
   ps_post = pop.state
   ret = call_for_each_compute_signal_upper(external_input_nz,t_now,idxneu,ps_post,
     pop.connections,pop.pre_states)
-  return apply_nonlinearity(ret,pop.nonlinearity)
+  ret_nonlin = apply_nonlinearity(ret,pop.nonlinearity)
+  ret = max(external_input_nz,ret_nonlin)
+  return ret
 end
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
