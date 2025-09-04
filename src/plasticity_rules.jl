@@ -889,20 +889,21 @@ end
 
 
 struct PlasticitySTDHS_simple{R} <: PlasticityRule
-  is_multiplicative::Bool
   A0::R   # global learning rate
+  A::R  # keep it simple:  -1 for pre E , +1 for pre I, sign will be scaled by τ
   τ::R
   αpost::R # < 0 for pre I, > 0 for pre E
-  A::R  # keep it simple:  -1 for pre E , +1 for pre I, will be scaled by τ
   post_trace::Trace{ForPlasticity,R}
   bounds::PlasticityBounds{R}
-  function PlasticitySTDHS_simple(A::R,τ::R,αpost::R,n_post::Integer;
+  is_multiplicative::Bool
+  function PlasticitySTDHS_simple(A0::R,psign::Real,τ::R,αpost::R,n_post::Integer;
       is_multiplicative::Bool=true,
       plasticity_bounds=PlasticityBoundsNonnegative()) where R<:Real
+    @assert A0 >= 0 "A0 should be >= 0"
+    @assert psign == 1 || psign == -1 "psign should be either +1 or -1"
     trace_post = Trace(τ,n_post) # this is the A minus side
-    Ascal = A/τ
-    new{R}(is_multiplicative,A0τ,αpost,
-      Ascal,trace_post,plasticity_bounds)
+    A = psign/τ
+    new{R}(A0,A,τ,αpost,trace_post,plasticity_bounds,is_multiplicative)
   end
 end
 function reset!(pl::PlasticitySTDHS_simple)
