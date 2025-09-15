@@ -920,7 +920,7 @@ end
     k_post::Integer,j_pre::Integer,plast::PlasticitySTDHS_simple{Float64})::Nothing
   wkj = weight_matrix[k_post,j_pre] 
   if !iszero(wkj)
-    ω = plast.A0 * (plast.αpost + plast.post_trace.val[j_pre]*plast.A)
+    ω = plast.A0 * (plast.αpost + plast.post_trace.val[k_post]*plast.A)
     if plast.is_multiplicative
       Δw = ω*wkj
     else
