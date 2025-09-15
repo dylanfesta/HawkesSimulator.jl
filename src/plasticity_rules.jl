@@ -901,7 +901,7 @@ struct PlasticitySTDHS_simple{R} <: PlasticityRule
       plasticity_bounds=PlasticityBoundsNonnegative()) where R<:Real
     @assert A0 >= 0 "A0 should be >= 0"
     @assert psign == 1 || psign == -1 "psign should be either +1 or -1"
-    trace_post = Trace(τ,n_post) # this is the A minus side
+    trace_post = Trace(τ,n_post)
     A = psign/τ
     new{R}(A0,A,τ,αpost,trace_post,plasticity_bounds,is_multiplicative)
   end
@@ -940,8 +940,6 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_useless::Inte
   @assert iszero(k_pre_useless) "This rule does not use k_pre_spike, should be zero"
   # update all pre and post traces to t_now
   propagate!(t_spike,plast.post_trace)
-  # increase the plasticity trace variables (if not zero)
-  update_now!(plast.post_trace,k_post_spike)
   # update synapses
   weights=conn.weights
   _,npre = size(weights)
@@ -949,6 +947,8 @@ function plasticity_update!(t_spike::R,k_post_spike::Integer,k_pre_useless::Inte
   for j in 1:npre
     weight_update_postfired!(weights,k_post_spike,j,plast)
   end
+  # update trace with post spike (must be done after weight update!)
+  update_now!(plast.post_trace,k_post_spike)
   return nothing
 end
 
