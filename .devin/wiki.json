@@ -16,7 +16,7 @@
     },
     {
       "title": "Getting Started",
-      "purpose": "Installation, dependencies (Julia ≥1.9, FFTW, Distributions, Colors, etc.), how to load the module, and a minimal working example of a 1D Hawkes process simulation. Covers Project.toml and the basic simulation lifecycle.",
+      "purpose": "Installation, dependencies (Julia ≥1.9), how to load the module, and a minimal working example of a 1D Hawkes process simulation. Then a minimal 2D example with an excitatory and an inhibitory unit. Covers the basic simulation lifecycle.",
       "parent": "Overview",
       "page_notes": [
         {
@@ -26,7 +26,7 @@
     },
     {
       "title": "Mathematical Background",
-      "purpose": "Explains the Hawkes process intensity function λ*(t), the role of interaction kernels, the stationary rate formula r = (I-W)⁻¹h, covariance density theory, and the connection to linear network models. Provides the mathematical grounding needed to understand the simulator's design choices.",
+      "purpose": "Explains the Hawkes process intensity function λ*(t), the role of interaction kernels, the stationary rate formula r = (I-W)⁻¹h, covariance density theory, and the connection to linear network models. Provides the mathematical grounding needed to understand the simulator's design choices. Mentions inhibitory interactions. Mentions spike-timing dependent plasticity (STDP)",
       "parent": "Overview",
       "page_notes": [
         {
