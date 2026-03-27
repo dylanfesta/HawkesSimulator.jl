@@ -1,0 +1,300 @@
+{
+  "repo_notes": [
+    {
+      "content": ""
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "High-level introduction to HawkesSimulator.jl: what it is, what problems it solves, the key mathematical concepts. Mention that it is applied to recurrent neural networks with excitatory inhibitory interactions and plasticity of connection weights. Map of the major subsystems. Links to child pages for architecture, simulation, plasticity, analysis, and developer tooling.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Getting Started",
+      "purpose": "Installation, dependencies (Julia ≥1.9, FFTW, Distributions, Colors, etc.), how to load the module, and a minimal working example of a 1D Hawkes process simulation. Covers Project.toml and the basic simulation lifecycle.",
+      "parent": "Overview",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Mathematical Background",
+      "purpose": "Explains the Hawkes process intensity function λ*(t), the role of interaction kernels, the stationary rate formula r = (I-W)⁻¹h, covariance density theory, and the connection to linear network models. Provides the mathematical grounding needed to understand the simulator's design choices.",
+      "parent": "Overview",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Core Architecture",
+      "purpose": "Overview of the module's type hierarchy and design philosophy: UnitType → PopulationState → AbstractPopulation → RecurrentNetwork. Introduces the key abstractions and how they compose. Links to child pages for each major subsystem.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Population and Network Types",
+      "purpose": "Detailed reference for PopulationState, PopulationHawkes, PopulationInput, PopulationInputTestWeights, RecurrentNetwork, and RecurrentNetworkExpKernel. Covers constructors, fields, the trains/trains_history dual-buffer design, and the reset! lifecycle.",
+      "parent": "Core Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Interaction Kernels",
+      "purpose": "Documents all UnitType kernel implementations: KernelExp (exponential), KernelStep (rectangular), and KernelAlphaDelay (alpha-function with delay). Covers the interaction_kernel, interaction_kernel_upper, and interaction_kernel_fourier interfaces, normalization conventions, and when to choose each kernel.",
+      "parent": "Core Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Connection Types",
+      "purpose": "Covers ConnectionDenseWeights, ConnectionNonInteracting, ConnectionVoid, and ConnectionExpKernel. Explains the role of each, how weights are stored, how plasticities are attached, and the distinction between interacting and non-interacting connections for plasticity testing.",
+      "parent": "Core Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Nonlinearities and Input Currents",
+      "purpose": "Documents AbstractNonlinearity subtypes (NLRelu, NLRectifiedQuadratic, NLRmax) and the apply_nonlinearity interface. Also covers external input mechanisms: InputCurrentFun, SGPoisson, SGPoissonFunction, SGTrains, and the thinning algorithm used for non-homogeneous Poisson inputs.",
+      "parent": "Core Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Simulation Engine",
+      "purpose": "Overview of how the simulator advances time, generates spikes, and manages state. Introduces the two main simulation paths (general Hawkes and exponential-kernel-optimized) and links to child pages for each.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "General Hawkes Simulation",
+      "purpose": "Covers the general spike generation path in spike_generation_hawkes.jl: the thinning/Ogata algorithm, dynamics_step!, dynamics_step_singlepopulation!, warmup_step!/do_warmup!, flush_trains!, and memory management via trains vs. trains_history. Includes the PopulationMixedExp mixed forced/stochastic model.",
+      "parent": "Simulation Engine",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Exponential Kernel Optimized Simulation",
+      "purpose": "Deep dive into the Markovian ExpKernel simulation path: PopulationStateExpKernel, PopulationStateExpKernelInhibitory, PopulationStateGlobalStabilization, PopulationExpKernel, ConnectionExpKernel, and RecurrentNetworkExpKernel. Explains the Trace-based O(N) update, the thinning algorithm with upper-bound rate computation, signal propagation, and the recursive tuple-iteration pattern for zero-allocation dispatch.",
+      "parent": "Simulation Engine",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Trace System",
+      "purpose": "Explains the Trace struct (val, τ, t_last), TracePurpose (ForDynamics vs. ForPlasticity), and the four lifecycle functions: propagate!, update_now!, update_for_dynamics!, and trace_proposal!. Covers why traces enable the Markovian optimization and how they differ between dynamics and plasticity use cases.",
+      "parent": "Simulation Engine",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Synaptic Plasticity",
+      "purpose": "Overview of the plasticity framework: the PlasticityRule abstract type, the plasticity_update! interface, PlasticityBounds, and the spike-triggered update lifecycle. Links to child pages for STDP rules, heterosynaptic plasticity, and rate-based plasticity.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "STDP Rules",
+      "purpose": "Detailed documentation of all STDP PlasticityRule implementations: PairSTDP, PlasticityTriplets, SymmetricSTDP, PlasticityInhibitory (Vogels-Sprekeler), PlasticitySymmetricSTDPGL, PlasticityAsymmetricSTDPGL, PlasticitySTDHS_simple, PlasticitySymmetricSTDPX, and PlasticityAsymmetricX. Covers parameters, the weight_update_prefired!/weight_update_postfired! callbacks, and the get_stdp_curve analytical utility.",
+      "parent": "Synaptic Plasticity",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Rate-Based Plasticity",
+      "purpose": "Covers the rate-dependent STDP regime: how PlasticitySymmetricSTDPX and PlasticityAsymmetricX produce tuning vs. blanket plasticity, the αpre/αpost/θ parameter relationships, target rate stabilization, and the emergence of symmetric vs. antisymmetric weight matrices.",
+      "parent": "Synaptic Plasticity",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Heterosynaptic Plasticity",
+      "purpose": "Documents PlasticityHeterosynapticApprox and its three-dimensional design: HeterosynapticConstraint (HetUpperLimit, HetStrictSum), HeterosynapticTarget (HetIncoming, HetOutgoing, HetBoth), and HeterosynapticMethod (HetAdditive). Covers the timer-based update mechanism, plasticity_init_weights!, hardbounds, and pre-allocated buffer design.",
+      "parent": "Synaptic Plasticity",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Analysis and Recording",
+      "purpose": "Overview of the post-simulation analysis and data collection infrastructure. Links to child pages for spike analysis utilities and the recorder system.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Spike Analysis Utilities",
+      "purpose": "Documents all functions in spike_analysis.jl: numerical_rates, numerical_rate, instantaneous_rates, bin_spikes, bin_and_rates, covariance_density_numerical, covariance_density_ij, covariance_self_numerical, get_frequencies, draw_spike_raster, add_to_spike_raster!, get_spiketimes_spikeneurons, and spiketn_to_trains. Covers the binning pipeline, frequency-domain utilities, and raster plot generation.",
+      "parent": "Analysis and Recording",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Recorder System",
+      "purpose": "Documents the Recorder abstract type and all concrete implementations: RecNothing, RecTheseWeights (periodic weight snapshots), RecFullTrain (all spikes), RecSomeTrain (subset of neurons in a time window), and DoEveryDt (arbitrary periodic callbacks). Covers the record_stuff! interface, get_content, pre-allocation strategy, and how recorders attach to RecurrentNetworkExpKernel.",
+      "parent": "Analysis and Recording",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Examples and Tutorials",
+      "purpose": "Overview of the worked examples included in the repository, organized by topic. Links to child pages covering basic Hawkes simulations, kernel variants, and plasticity demonstrations.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Basic Hawkes Process Examples",
+      "purpose": "Walks through the 1D and 2D exponential kernel examples (exp_1and2D.jl), the Hawkes-vs-linear-network equivalence demonstration (hawkes_vs_2D_linear.jl), and the hawkes_and_rates_linear.jl example. Shows how to construct networks, run simulations, flush trains, compute rates, and validate against analytic solutions.",
+      "parent": "Examples and Tutorials",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Delayed and Alpha Kernel Examples",
+      "purpose": "Covers the alphadelay.jl and 2d_delay_autapses.jl examples demonstrating KernelAlphaDelay usage, conduction delays, autaptic connections, and the corresponding documentation pages.",
+      "parent": "Examples and Tutorials",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Plasticity Examples",
+      "purpose": "Covers the plasticity_STDP.jl, plasticity_rate_based.jl, and plasticity_STDP_ratecompare.jl examples. Shows how to set up plastic connections, run simulations with weight evolution, record weight trajectories, and compare numerical results to analytic predictions for pairwise, triplet, symmetric, and asymmetric STDP rules.",
+      "parent": "Examples and Tutorials",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Performance and Benchmarking",
+      "purpose": "Overview of the benchmarking infrastructure and performance characteristics of the simulator. Covers the benchmarks/ and scripts/ directories, profiling tools, and key optimization patterns used throughout the codebase.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Benchmark Suites",
+      "purpose": "Documents the benchmark scripts in benchmarks/ (01_profile_expker.jl, 02_benchmark_expker.jl, 03_profile_expkerplast.jl, 04_benchmark_expkerplast.jl) and scripts/ (benchmark1–5). Explains what each benchmark measures, how to run them, and how to interpret results using BenchmarkTools and PProf.",
+      "parent": "Performance and Benchmarking",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Performance Optimization Patterns",
+      "purpose": "Explains the key performance techniques used in the codebase: pre-allocated spike_proposals buffers, recursive tail-call tuple iteration (call_for_each_compute_signal etc.) for zero-allocation heterogeneous dispatch, the Markovian trace trick for O(N) ExpKernel updates vs. O(N·history) general Hawkes, @inline annotations, and the flush_trains! memory management strategy.",
+      "parent": "Performance and Benchmarking",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "CI/CD and Project Infrastructure",
+      "purpose": "Covers the GitHub Actions workflows (CI.yml, CompatHelper.yml, TagBot.yml, dependabot.yml), the docs build system (docs/make.jl, docs/Project.toml), and the test suite structure (test/runtests.jl, test/plottests.jl, test/Project.toml).",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Test Suite",
+      "purpose": "Documents the test infrastructure: runtests.jl (functional correctness tests for all network types, kernels, plasticity rules, and input generators) and plottests.jl (numerical validation of plasticity rules against analytic solutions). Explains the test patterns, tolerance thresholds, and how to run the tests.",
+      "parent": "CI/CD and Project Infrastructure",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Documentation Build",
+      "purpose": "Explains how the Documenter.jl-based documentation is structured and built: docs/make.jl configuration, docs/Project.toml dependencies, the docs/src/ page hierarchy, and how to build and deploy docs locally or via CI.",
+      "parent": "CI/CD and Project Infrastructure",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Glossary",
+      "purpose": "Definitions of all codebase-specific terms, mathematical symbols, type names, and abbreviations that an onboarding engineer needs to know. Each entry includes the relevant file path and type/function name.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
