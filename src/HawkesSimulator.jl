@@ -222,12 +222,11 @@ mutable struct Trace{P<:TracePurpose,R}
   val::Vector{R}
   τ::R
   t_last::R
-  purpose::P
   function Trace(τ::Real,n::Integer,
       (purpose::P)=ForPlasticity()) where {P<:TracePurpose}
     val = fill(0.0,n)
     t_last = 0.0
-    return new{P,Float64}(val,τ,t_last,purpose)
+    return new{P,Float64}(val,τ,t_last)
   end
 end
 
@@ -274,11 +273,14 @@ function reset!(tra::Trace)
   return nothing
 end
 
+@inline function trace_decay(tnow::Real,tra::Trace)
+  return exp(-(tnow-tra.t_last)/tra.τ)
+end
+
 # proposal of future trace. Useful to compute quantities without advancing the trace
 function trace_proposal!(proposal::Vector{R},tnow::R,tra::Trace{P,R}) where {P,R}
-  Δt::R = tnow - tra.t_last
   copy!(proposal,tra.val)
-  rmul!(proposal,exp(-Δt/tra.τ))
+  rmul!(proposal,trace_decay(tnow,tra))
   return nothing
 end
 

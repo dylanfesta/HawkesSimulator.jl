@@ -88,8 +88,9 @@ function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationMixe
   return nothing
 end
 
-# Multivariate thinning algorithf(Y. Chen, 2016) plus forced spiketimes
-function compute_next_spike(t_now::Real,pop::PopulationMixedExp;Tmax::Real=100.0)
+# Multivariate thinning algorithm (Y. Chen, 2016) plus forced spike times
+function compute_next_spike(rng::AbstractRNG,t_now::Real,
+    pop::PopulationMixedExp;Tmax::Real=100.0)
   t_start = t_now
   t = t_now
   n = nneurons(pop)
@@ -102,12 +103,12 @@ function compute_next_spike(t_now::Real,pop::PopulationMixedExp;Tmax::Real=100.0
   while (t-t_start)<Tmax 
     dorates!(t)
     M = sum(rates)
-    Δt =  -log(rand())/M # rand(Exponential())/M
+    Δt = -log(rand(rng))/M
     t = t+Δt
     if t >= t_forced # if in the future, return forced spike instead
       return (t_forced,k_forced)
     else
-      u = rand()*M # random between 0 and M
+      u = rand(rng)*M # random between 0 and M
       dorates!(t)
       cumsum!(rates,rates)
       k = searchsortedfirst(rates,u)
@@ -118,4 +119,7 @@ function compute_next_spike(t_now::Real,pop::PopulationMixedExp;Tmax::Real=100.0
   end
   @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test?)"
   return (Tmax + t_start,1)
+end
+function compute_next_spike(t_now::Real,pop::PopulationMixedExp;Tmax::Real=100.0)
+  return compute_next_spike(Random.default_rng(),t_now,pop;Tmax=Tmax)
 end

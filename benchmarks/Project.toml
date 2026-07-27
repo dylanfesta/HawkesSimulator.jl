@@ -1,0 +1,7 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+HawkesSimulator = "f4bfcbbe-5b1c-4dbf-9b19-ca03e52722c1"
+
+[compat]
+BenchmarkTools = "1"
+julia = "1.9"

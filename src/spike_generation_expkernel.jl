@@ -147,49 +147,34 @@ end
 struct ConnectionExpKernel{W,NPL,PL<:NTuple{NPL,PlasticityRule},T} <: ConnectionWithWeights{W,NPL,PL}
   weights::W
   pre_trace::T
-  trace_proposal::Vector{Float64}
   plasticities::PL
 end
 function ConnectionExpKernel(weights::Matrix{Float64},pre_trace::Trace)
   plast = NTuple{0,NoPlasticity}()
   _,npre = size(weights)
   @assert npre == nneurons(pre_trace)
-  tra_prop = Vector{Float64}(undef,npre)
   @assert(all(weights .>= 0.0), 
   """
     Weights must be positive! 
     For inhibitory connections use PopulationStateExpKernelInhibitory
   """)
-  return ConnectionExpKernel(weights,pre_trace,tra_prop,plast)
+  return ConnectionExpKernel(weights,pre_trace,plast)
 end
 function ConnectionExpKernel(weights::Matrix{Float64},pre_trace::Trace,
      (plasticity_rules::PL where PL<:PlasticityRule)...)
   _,npre = size(weights)
   @assert npre == nneurons(pre_trace)
-  tra_prop = Vector{Float64}(undef,npre)
   @assert(all(weights .>= 0.0), 
   """
     Weights must be positive! 
     For inhibitory connections use PopulationStateExpKernelInhibitory
   """)
-  return ConnectionExpKernel(weights,pre_trace,tra_prop,plasticity_rules)
+  return ConnectionExpKernel(weights,pre_trace,plasticity_rules)
 end
 function reset!(conn::ConnectionExpKernel)
   reset!(conn.pre_trace)
-  fill!(conn.trace_proposal,NaN)
   reset!.(conn.plasticities)
   return nothing
-end
-
-@inline function trace_proposal!(t_now::Real,conn::ConnectionExpKernel)
-  trace_proposal!(conn.trace_proposal,t_now,conn.pre_trace)::Nothing
-  return conn.trace_proposal::Vector{Float64}
-end
-
-# if connection admits no inteaction, returns a vector of zeros
-@inline function trace_proposal!(::Real,conn::ConnectionNonInteracting)
-  npre = size(conn.weights,2)
-  return zeros(npre) 
 end
 
 struct RecurrentNetworkExpKernel{N,TP<:NTuple{N,AbstractPopulation},NR,TR<:NTuple{NR,Recorder}}
@@ -250,10 +235,8 @@ function burn_spike!(t_spike::Real,ps::PopulationStateMarkovian,idx_update::Inte
   return nothing
 end
 function burn_spike!(t_spike::Real,ps::PopulationStateMarkovian)
-  # take care of traces  
-  for tra in ps.traces
-    propagate_for_dynamics!(t_spike,tra) # update full trace to t_spike 
-  end
+  # Traces carry their own last-update time, so a population that did not
+  # spike can remain at its previous representation.
   return nothing
 end
 
@@ -277,22 +260,22 @@ function plasticity_update!(t_spike::Real,label_spike::Symbol,
 end
 
 @inline function propagated_signal(t_now::Real,idx_post::Integer,
-    ::PopulationStateMarkovian,conn::Connection,::PopulationStateMarkovian)
-  tra_tnow = trace_proposal!(t_now,conn)
+    ::PopulationStateMarkovian,conn::ConnectionExpKernel,
+    ::PopulationStateMarkovian)
   wij_all = view(conn.weights,idx_post,:)
-  return dot(wij_all,tra_tnow)
+  return trace_decay(t_now,conn.pre_trace)*dot(wij_all,conn.pre_trace.val)
 end
 propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,
-  d::Connection,e::PopulationStateMarkovian) = propagated_signal(a,b,c,d,e)
+  d::ConnectionExpKernel,e::PopulationStateMarkovian) = propagated_signal(a,b,c,d,e)
 
 # if inhibitory, same as above ,but all weights are considered negative
 @inline function propagated_signal(t_now::Real,idx_post::Integer,
-    ::PopulationStateMarkovian,conn::Connection,::PopulationStateExpKernelInhibitory)
-  tra_tnow = trace_proposal!(t_now,conn)
+    ::PopulationStateMarkovian,conn::ConnectionExpKernel,
+    ::PopulationStateExpKernelInhibitory)
   wij_all = view(conn.weights,idx_post,:)
-  return -dot(wij_all,tra_tnow)
+  return -trace_decay(t_now,conn.pre_trace)*dot(wij_all,conn.pre_trace.val)
 end
-propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,d::Connection,
+propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,d::ConnectionExpKernel,
   e::PopulationStateExpKernelInhibitory) = propagated_signal(a,b,c,d,e)
 
 # this one below is proably not needed
@@ -308,6 +291,9 @@ end
     ::PopulationStateMarkovian,::ConnectionNonInteracting,::PopulationStateExpKernelInhibitory)
   return 1E-9
 end
+propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,
+  d::ConnectionNonInteracting,e::PopulationStateMarkovian) =
+  propagated_signal(a,b,c,d,e)
   
 
 function trace_proposals(t_now::Real,idx_neu::Integer,
@@ -327,8 +313,6 @@ propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
   ::PopulationStateGlobalStabilization) = 0.0
 
 
-
-
 function call_for_each_compute_signal(ret,t_now,idxneu,ps_post,connections,pre_states)
     ret += propagated_signal(t_now,idxneu,ps_post,first(connections),first(pre_states)) 
     return call_for_each_compute_signal(ret,t_now,idxneu,ps_post,
@@ -342,29 +326,70 @@ function compute_rate(t_now::Float64,external_input::Float64,
     pop::PopulationExpKernel, idxneu::Integer)::Float64
   ps_post = pop.state
   ret = call_for_each_compute_signal(external_input,t_now,idxneu,ps_post,pop.connections,pop.pre_states)
-  #nc = length(pop.connections)
-  #for i in 1:nc
-  #  ret += propagated_signal(t_now,idxneu,ps_post,pop.connections[i] ,pop.pre_states[i])::Float64
-  #end
   ret = apply_nonlinearity(ret,pop.nonlinearity)
   return ret
 end
+
+function accumulate_signal!(rates::Vector{Float64},t_now::Real,
+    ::PopulationStateMarkovian,conn::ConnectionExpKernel,
+    ::PopulationStateMarkovian)
+  decay = trace_decay(t_now,conn.pre_trace)
+  mul!(rates,conn.weights,conn.pre_trace.val,decay,1.0)
+  return nothing
+end
+
+function accumulate_signal!(rates::Vector{Float64},t_now::Real,
+    ::PopulationStateMarkovian,conn::ConnectionExpKernel,
+    ::PopulationStateExpKernelInhibitory)
+  decay = trace_decay(t_now,conn.pre_trace)
+  mul!(rates,conn.weights,conn.pre_trace.val,-decay,1.0)
+  return nothing
+end
+
+function accumulate_signal!(rates::Vector{Float64},::Real,
+    ::PopulationStateMarkovian,::ConnectionNonInteracting,
+    ::PopulationStateMarkovian)
+  for idx_post in eachindex(rates)
+    @inbounds rates[idx_post] += 1E-9
+  end
+  return nothing
+end
+
+function accumulate_signals!(rates,t_now,ps_post,connections,pre_states)
+  accumulate_signal!(rates,t_now,ps_post,first(connections),first(pre_states))
+  accumulate_signals!(rates,t_now,ps_post,Base.tail(connections),Base.tail(pre_states))
+  return nothing
+end
+function accumulate_signals!(::Vector{Float64},::Real,
+    ::PopulationStateMarkovian,::Tuple{},::Tuple{})
+  return nothing
+end
+
 function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
-  inputs = pop.input
+  copyto!(r_alloc,pop.input)
+  accumulate_signals!(r_alloc,t_now,pop.state,pop.connections,pop.pre_states)
   for i in eachindex(r_alloc)
-    r_alloc[i] = compute_rate(t_now,inputs[i],pop,i)
+    @inbounds r_alloc[i] = apply_nonlinearity(r_alloc[i],pop.nonlinearity)
   end
   return nothing
 end
 
 
-# upper boundary ignores inhibitory component, because it's increasing!
-
-
+# The current upper-rate behavior includes inhibitory contributions and then
+# floors the result at the external input. Its validity for differing
+# excitatory and inhibitory time constants is investigated in benchmarks.
 function compute_rates_upper!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
   inputs = pop.input
   for i in eachindex(r_alloc)
-    r_alloc[i] = compute_rate_upper(t_now,inputs[i],pop,i)
+    @inbounds r_alloc[i] = max(inputs[i],eps(Float64))
+  end
+  accumulate_signals!(r_alloc,t_now,pop.state,pop.connections,pop.pre_states)
+  for i in eachindex(r_alloc)
+    @inbounds begin
+      external_input_nz = max(inputs[i],eps(Float64))
+      rate = apply_nonlinearity(r_alloc[i],pop.nonlinearity)
+      r_alloc[i] = max(external_input_nz,rate)
+    end
   end
   return nothing
 end
@@ -389,26 +414,23 @@ function compute_rate_upper(t_now::R,external_input::R,pop::PopulationExpKernel,
   return ret
 end
 
-# Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
-# replaced by....
-# multivariate thinning algorith. From  Y. Chen, 2016
-function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.0)
+# multivariate thinning algorithm. From Y. Chen, 2016
+function compute_next_spike(rng::AbstractRNG,t_now::Real,
+    pop::PopulationExpKernel;Tmax::Real=100.0)
   t_start = t_now
   t = t_now
   rates = pop.spike_proposals # recycle & reuse  # Vector{Float64}(undef,n)
-  dorates_upper!(t) = compute_rates_upper!(rates,t,pop)
-  dorates!(t) = compute_rates!(rates,t,pop)
   while (t-t_start)<Tmax 
-    dorates_upper!(t)
+    compute_rates_upper!(rates,t,pop)
     R_up = sum(rates)
     if R_up==0
       @error "Something wrong with neural inputs!"
       break
     end
-    Δt =  -log(rand())/R_up # rand(Exponential())/R_up
+    Δt = -log(rand(rng))/R_up
     t = t+Δt
-    u = rand()*R_up # random between 0 and R_up
-    dorates!(t)
+    u = rand(rng)*R_up # random between 0 and R_up
+    compute_rates!(rates,t,pop)
     cumsum!(rates,rates)
     if u < rates[end] # else, continue
       k = searchsortedfirst(rates,u)
@@ -417,6 +439,9 @@ function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.
   end
   @warn "Population did not spike ! Returning fake spike at t=$(Tmax+t_start) (is this a test? or too much inh?)" maxlog=20
   return (Tmax + t_start,1)
+end
+function compute_next_spike(t_now::Real,pop::PopulationExpKernel;Tmax::Real=100.0)
+  return compute_next_spike(Random.default_rng(),t_now,pop;Tmax=Tmax)
 end
 
 ###
@@ -679,24 +704,32 @@ end
 # # select next spike (best across all input_networks)
 # (tfire,popfire) = findmin(proposals_best)
 # neufire = neuron_best[popfire]
-function call_for_compute_next_spike(t_now,populations,
-    currentpop,bestspiketime,bestpop,bestpoplabel,bestneuron)
+function call_for_compute_next_spike(rng::AbstractRNG,t_now::Real,populations)
   pop = first(populations)
-  currentpop = currentpop+1
-  (bestspiketime_here,bestneuron_here) = compute_next_spike(t_now,pop)
+  bestspiketime,bestneuron = compute_next_spike(rng,t_now,pop)
+  return call_for_compute_next_spike(rng,t_now,Base.tail(populations),
+    1,bestspiketime,1,pop.state.label,bestneuron)
+end
+function call_for_compute_next_spike(rng::AbstractRNG,t_now::Real,populations,
+    currentpop::Int,bestspiketime::R,bestpop::Int,
+    bestpoplabel::Symbol,bestneuron::Int) where R<:Real
+  if isempty(populations)
+    return (bestspiketime,bestpop,bestpoplabel,bestneuron)
+  end
+  pop = first(populations)
+  currentpop += 1
+  bestspiketime_here,bestneuron_here = compute_next_spike(rng,t_now,pop)
   if bestspiketime_here < bestspiketime
     bestspiketime = bestspiketime_here
     bestpop = currentpop
     bestpoplabel = pop.state.label
     bestneuron = bestneuron_here
   end
-  tailpopulations = Base.tail(populations)
-  if isempty(tailpopulations)
-    return (bestspiketime,bestpop,bestpoplabel,bestneuron)
-  else
-    return call_for_compute_next_spike(t_now,tailpopulations,
-      currentpop,bestspiketime,bestpop,bestpoplabel,bestneuron)
-  end
+  return call_for_compute_next_spike(rng,t_now,Base.tail(populations),
+    currentpop,bestspiketime,bestpop,bestpoplabel,bestneuron)
+end
+function call_for_compute_next_spike(t_now::Real,populations)
+  return call_for_compute_next_spike(Random.default_rng(),t_now,populations)
 end
 
 # Thou shall not leak!
@@ -724,8 +757,9 @@ function call_for_multipop_burn_spike!(currentpop::Integer,tfire,popfire,neufire
 end
 
 
-function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
-  (tfire,popfire,labelfire,neufire) = call_for_compute_next_spike(t_now,ntw.populations,0,Inf,-1,-1,-1)
+function dynamics_step!(rng::AbstractRNG,t_now::Real,ntw::RecurrentNetworkExpKernel)
+  tfire,popfire,labelfire,neufire =
+    call_for_compute_next_spike(rng,t_now,ntw.populations)
   # update stuff for that specific neuron/population state :
   call_for_multipop_burn_spike!(0,tfire,popfire,neufire,ntw.populations)
   # apply plasticity rules ! Each rule in each connection in each population
@@ -736,12 +770,16 @@ function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
   # update t_now 
   return tfire
 end
+function dynamics_step!(t_now::Real,ntw::RecurrentNetworkExpKernel)
+  return dynamics_step!(Random.default_rng(),t_now,ntw)
+end
 
-function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetworkExpKernel)
+function dynamics_step_singlepopulation!(rng::AbstractRNG,t_now::Real,
+    ntw::RecurrentNetworkExpKernel)
   # update proposed next spike for each postsynaptic neuron
   popfire = 1 
   pop = ntw.populations[1]
-  (tfire,neufire) = compute_next_spike(t_now,pop)
+  (tfire,neufire) = compute_next_spike(rng,t_now,pop)
   psfire = pop.state
   label_fire = psfire.label
   # update stuff for that specific neuron/population state :
@@ -760,4 +798,7 @@ function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetworkExpKer
   call_for_each_record_stuff!(ntw.recorders,tfire,popfire,neufire,label_fire,ntw)
   # update t_now 
   return tfire
+end
+function dynamics_step_singlepopulation!(t_now::Real,ntw::RecurrentNetworkExpKernel)
+  return dynamics_step_singlepopulation!(Random.default_rng(),t_now,ntw)
 end
