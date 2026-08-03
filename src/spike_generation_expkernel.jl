@@ -447,11 +447,11 @@ end
 ###
 
 # general signature: record_stuff!(rec,tfire,popfire,neufire,label_fire,ntw)
-# @inline function record_stuff!(::RecNothing,::Real,
+# @inline function record_stuff!(::AbstractRecorder,::Real,
 #     ::Integer,::Integer,::Symbol,
-#     ::RecurrentNetworkExpKernel)
+#     ::AbstractRecurrentNetwork)
 #   return nothing  
-# end
+# end     
 
 struct RecSomeTrain{I,R} <: Recorder
   nmaxrec::I
