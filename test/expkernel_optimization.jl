@@ -225,6 +225,29 @@ end
   @test single_a.populations[1].state.traces[1].val ==
     single_b.populations[1].state.traces[1].val
 
+  input_trains = [[0.1,0.3],[0.2,0.4]]
+  input_connection = H.ConnectionDenseWeights(zeros(2,2))
+  input_state_a = H.PopulationState(H.InputUnit(H.SGTrains(input_trains)),2)
+  input_state_b = H.PopulationState(H.InputUnit(H.SGTrains(input_trains)),2)
+  input_pop_a = H.PopulationInputTestWeights(input_state_a,input_connection)
+  input_pop_b = H.PopulationInputTestWeights(input_state_b,input_connection)
+  input_proposal_a = H.compute_next_spike(MersenneTwister(654),0.0,input_pop_a)
+  input_proposal_b = H.compute_next_spike(MersenneTwister(654),0.0,input_pop_b)
+  @test input_proposal_a == input_proposal_b == (0.1,1)
+
+  input_network = H.RecurrentNetworkExpKernel(input_pop_a)
+  @test H.dynamics_step_singlepopulation!(
+    MersenneTwister(654),0.0,input_network) == 0.1
+
+  poisson = H.SGPoisson([4.0])
+  @test H.compute_next_spike(MersenneTwister(741),0.0,poisson,1) ==
+    H.compute_next_spike(MersenneTwister(741),0.0,poisson,1)
+
+  poisson_function = H.SGPoissonFunction((t,idx)->4.0,(t,idx)->4.0)
+  @test H.compute_next_spike(
+    MersenneTwister(852),0.0,poisson_function,1) ==
+    H.compute_next_spike(MersenneTwister(852),0.0,poisson_function,1)
+
   forced_trains = [[0.1,0.2],[0.15,0.25]]
   mixed_trace = H.Trace(0.2,2,H.ForDynamics())
   mixed_state = H.PopulationStateMixedExp(forced_trains,mixed_trace)

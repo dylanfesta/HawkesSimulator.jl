@@ -18,8 +18,23 @@ abstract type SpikeGenerator end
 struct InputUnit{SG<:SpikeGenerator} <: UnitType
   spike_generator::SG
 end
-@inline function compute_next_spike(t_now::Real,pop::AbstractPopulationInput,ineu::Integer;Tmax::Float64=100.0)
-  return compute_next_spike(t_now,pop.state.unittype.spike_generator,ineu;Tmax=Tmax)
+@inline function compute_next_spike(rng::AbstractRNG,t_now::Real,
+    pop::AbstractPopulationInput,ineu::Integer;Tmax::Real=100.0)
+  return compute_next_spike(
+    rng,t_now,pop.state.unittype.spike_generator,ineu;Tmax=Tmax)
+end
+@inline function compute_next_spike(t_now::Real,pop::AbstractPopulationInput,
+    ineu::Integer;Tmax::Real=100.0)
+  return compute_next_spike(Random.default_rng(),t_now,pop,ineu;Tmax=Tmax)
+end
+
+function compute_next_spike(rng::AbstractRNG,t_now::Real,
+    pop::AbstractPopulationInput;Tmax::Real=100.0)
+  for ineu in 1:nneurons(pop)
+    @inbounds pop.spike_proposals[ineu] =
+      compute_next_spike(rng,t_now,pop,ineu;Tmax=Tmax)
+  end
+  return findmin(pop.spike_proposals)
 end
 
 # simplified constructor for population object
@@ -61,9 +76,14 @@ end
 struct SGPoisson <: SpikeGenerator
   rates::Vector{Float64}
 end
-@inline function compute_next_spike(t_now::Float64,sg::SGPoisson,idxneu::Integer;Tmax::Float64=100.0)
-  Δt = -log(rand())/sg.rates[idxneu]
+@inline function compute_next_spike(rng::AbstractRNG,t_now::Real,
+    sg::SGPoisson,idxneu::Integer;Tmax::Real=100.0)
+  Δt = -log(rand(rng))/sg.rates[idxneu]
   return t_now + min(Δt,Tmax)
+end
+@inline function compute_next_spike(t_now::Real,sg::SGPoisson,
+    idxneu::Integer;Tmax::Real=100.0)
+  return compute_next_spike(Random.default_rng(),t_now,sg,idxneu;Tmax=Tmax)
 end
 
 # this is here mostly for testing
@@ -86,7 +106,8 @@ end
 struct SGTrains <: SpikeGenerator
   trains::Vector{Vector{Float64}}
 end
-@inline function compute_next_spike(t_now::Float64,sg::SGTrains,idxneu::Integer;Tmax::Float64=100.0)
+@inline function compute_next_spike(::AbstractRNG,t_now::Real,
+    sg::SGTrains,idxneu::Integer;Tmax::Real=100.0)
   train = sg.trains[idxneu]
   t_now_plus = t_now+eps(10*t_now) # add an increment to move to next element
   idx = searchsortedfirst(train,t_now_plus)
@@ -95,6 +116,10 @@ end
   else
     return min(train[idx],t_now+Tmax)
   end
+end
+@inline function compute_next_spike(t_now::Real,sg::SGTrains,
+    idxneu::Integer;Tmax::Real=100.0)
+  return compute_next_spike(Random.default_rng(),t_now,sg,idxneu;Tmax=Tmax)
 end
 
 ##############
@@ -107,15 +132,15 @@ end
 
 # Thinning algorith, e.g.  Laub,Taimre,Pollet 2015
 # pretty much the same as in `spike_generation_hawkes` ...
-function _rand_by_thinning(t_start::Real,idx_neu::Integer,
+function _rand_by_thinning(rng::AbstractRNG,t_start::Real,idx_neu::Integer,
     get_rate::Function,get_rate_upper::Function;
     Tmax=100.0,nowarning::Bool=false)
   t = t_start 
   while (t-t_start)<Tmax # Tmax is upper limit, if rate too low 
     (rup::Float64) = get_rate_upper(t,idx_neu)
-    Δt = -log(rand())/rup # rand(Exponential())/rup
+    Δt = -log(rand(rng))/rup # rand(Exponential())/rup
     t = t+Δt
-    u = rand()*rup # rand(Uniform(0.0,rup))
+    u = rand(rng)*rup # rand(Uniform(0.0,rup))
     (_r::Float64) = get_rate(t,idx_neu) 
     if u <= _r
       return t
@@ -127,8 +152,20 @@ function _rand_by_thinning(t_start::Real,idx_neu::Integer,
   end
   return Tmax + t_start
 end
-function compute_next_spike(t_now::Float64,sg::SGPoissonFunction,idx_neu::Integer;Tmax::Float64=100.0)
-  return _rand_by_thinning(t_now,idx_neu,sg.ratefunction,sg.ratefunction_upper;Tmax=Tmax)
+function _rand_by_thinning(t_start::Real,idx_neu::Integer,
+    get_rate::Function,get_rate_upper::Function;kwargs...)
+  return _rand_by_thinning(Random.default_rng(),t_start,idx_neu,
+    get_rate,get_rate_upper;kwargs...)
+end
+function compute_next_spike(rng::AbstractRNG,t_now::Real,
+    sg::SGPoissonFunction,idx_neu::Integer;Tmax::Real=100.0)
+  return _rand_by_thinning(rng,t_now,idx_neu,
+    sg.ratefunction,sg.ratefunction_upper;Tmax=Tmax)
+end
+function compute_next_spike(t_now::Real,sg::SGPoissonFunction,
+    idx_neu::Integer;Tmax::Real=100.0)
+  return compute_next_spike(
+    Random.default_rng(),t_now,sg,idx_neu;Tmax=Tmax)
 end
 
 
