@@ -73,16 +73,99 @@ end
 
   upper_rates = similar(input)
   H.compute_rates_upper!(upper_rates,t_now,pop)
-  expected_upper = max.(max.(input,eps(Float64)),expected)
+  expected_upper_raw = input + decay_e*weights_e*trace_e.val .+ 1E-9
+  expected_upper = max.(max.(expected_upper_raw,0.0),eps(Float64))
   @test all(isapprox.(upper_rates,expected_upper;rtol=1E-12,atol=1E-12))
   scalar_upper = [H.compute_rate_upper(t_now,input[i],pop,i) for i in eachindex(input)]
   @test all(isapprox.(upper_rates,scalar_upper;rtol=1E-12,atol=1E-12))
+
+  upper_contribution = zeros(2)
+  @test H.accumulate_signal_upper!(
+    upper_contribution,t_now,post_state,conn_e,pre_e) === nothing
+  @test all(isapprox.(upper_contribution,
+    decay_e*weights_e*trace_e.val;rtol=1E-12,atol=1E-12))
+  @test H.accumulate_signal_upper!(
+    upper_contribution,t_now,post_state,conn_i,pre_i) === nothing
+  @test all(isapprox.(upper_contribution,
+    decay_e*weights_e*trace_e.val;rtol=1E-12,atol=1E-12))
+  @test H.accumulate_signal_upper!(
+    upper_contribution,t_now,post_state,conn_none,pre_e) === nothing
+  @test all(isapprox.(upper_contribution,
+    decay_e*weights_e*trace_e.val .+ 1E-9;rtol=1E-12,atol=1E-12))
 
   empty_state,_ = H.population_state_exp_and_trace(0,0.2;label="empty")
   empty_pop = H.PopulationExpKernel(empty_state,Float64[])
   empty_rates = Float64[]
   @test H.compute_rates!(empty_rates,0.0,empty_pop) === nothing
   @test isempty(empty_rates)
+  @test H.compute_rates_upper!(empty_rates,0.0,empty_pop) === nothing
+  @test isempty(empty_rates)
+end
+
+@testset "Exponential-kernel positive-only upper bound" begin
+  post_state,_ = H.population_state_exp_and_trace(1,0.5;label="bound_post")
+  pre_e,trace_e = H.population_state_exp_and_trace(1,1.0;label="bound_e")
+  pre_i,trace_i = H.population_state_exp_and_trace_inhibitory(
+    1,0.1;label="bound_i")
+  trace_e.val[1] = 10.0
+  trace_i.val[1] = 9.0
+  conn_e = H.ConnectionExpKernel(ones(1,1),trace_e)
+  conn_i = H.ConnectionExpKernel(ones(1,1),trace_i)
+  pop = H.PopulationExpKernel(post_state,[1.0],(conn_e,pre_e),(conn_i,pre_i))
+
+  upper = [NaN]
+  @test H.compute_rates_upper!(upper,0.0,pop) === nothing
+  @test isapprox(upper[1],11.0;rtol=1E-14)
+  @test isapprox(H.compute_rate_upper(0.0,1.0,pop,1),11.0;rtol=1E-14)
+
+  rate = [NaN]
+  for t_future in range(0.0,10.0;length=1_001)
+    H.compute_rates!(rate,t_future,pop)
+    @test rate[1] <= upper[1]
+  end
+  H.compute_rates!(rate,0.2,pop)
+  @test rate[1] > 2.0
+end
+
+@testset "Vectorized exponential-kernel input currents" begin
+  post_state,_ = H.population_state_exp_and_trace(2,0.5;label="input_post")
+  input_state = H.InputCurrentFun(2,
+    (t,idx)->idx+t,
+    (t,idx)->idx+10.0;
+    label=:input_current)
+  conn = H.ConnectionVoid()
+  static_input = [-0.5,1.0]
+  pop = H.PopulationExpKernel(post_state,static_input,(conn,input_state))
+  t_now = 0.25
+
+  contribution = zeros(2)
+  @test H.accumulate_signal!(
+    contribution,t_now,post_state,conn,input_state) === nothing
+  @test contribution == [1.25,2.25]
+
+  upper_contribution = zeros(2)
+  @test H.accumulate_signal_upper!(
+    upper_contribution,t_now,post_state,conn,input_state) === nothing
+  @test upper_contribution == [11.0,12.0]
+
+  rates = similar(static_input)
+  H.compute_rates!(rates,t_now,pop)
+  @test rates == [0.75,3.25]
+  @test rates == [H.compute_rate(t_now,static_input[i],pop,i) for i in 1:2]
+
+  upper_rates = similar(static_input)
+  H.compute_rates_upper!(upper_rates,t_now,pop)
+  @test upper_rates == [10.5,13.0]
+  @test upper_rates ==
+    [H.compute_rate_upper(t_now,static_input[i],pop,i) for i in 1:2]
+end
+
+@testset "Monotone rate nonlinearities" begin
+  nonlinearity = H.NLRmax(3.0)
+  @test H.apply_nonlinearity(-1.0,nonlinearity) == 0.0
+  @test H.apply_nonlinearity(0.0,nonlinearity) == 0.0
+  @test H.apply_nonlinearity(2.0,nonlinearity) == 2.0
+  @test H.apply_nonlinearity(4.0,nonlinearity) == 3.0
 end
 
 @testset "RNG-aware exponential-kernel dynamics" begin

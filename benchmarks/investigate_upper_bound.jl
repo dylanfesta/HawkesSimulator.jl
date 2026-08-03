@@ -14,14 +14,14 @@ rate(t) = max(0.0,baseline +
   excitation_at_zero*exp(-t/τ_excitation) -
   inhibition_at_zero*exp(-t/τ_inhibition))
 
-current_behavior_bound = max(baseline,rate(0.0))
+regressed_behavior_bound = max(baseline,rate(0.0))
 positive_only_bound = baseline+excitation_at_zero
 future_time = 0.2
 future_rate = rate(future_time)
 
-@assert future_rate > current_behavior_bound
+@assert future_rate > regressed_behavior_bound
 @assert all(rate(t) <= positive_only_bound for t in range(0.0,10.0;length=10_001))
 
-println("Current-behavior bound: ",current_behavior_bound)
+println("Regressed bound: ",regressed_behavior_bound)
 println("Rate at t=",future_time,": ",future_rate)
 println("Positive-interaction-only bound: ",positive_only_bound)

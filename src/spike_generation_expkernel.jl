@@ -275,8 +275,8 @@ propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,
   wij_all = view(conn.weights,idx_post,:)
   return -trace_decay(t_now,conn.pre_trace)*dot(wij_all,conn.pre_trace.val)
 end
-propagated_signal_upper(a::Real,b::Integer,c::PopulationStateMarkovian,d::ConnectionExpKernel,
-  e::PopulationStateExpKernelInhibitory) = propagated_signal(a,b,c,d,e)
+propagated_signal_upper(::Real,::Integer,::PopulationStateMarkovian,::ConnectionExpKernel,
+  ::PopulationStateExpKernelInhibitory) = 0.0
 
 # this one below is proably not needed
 propagated_signal_upper(::Real,::Integer,::PopulationState,::Connection,
@@ -355,12 +355,43 @@ function accumulate_signal!(rates::Vector{Float64},::Real,
   return nothing
 end
 
+function accumulate_signal_upper!(rates::Vector{Float64},t_now::Real,
+    ps_post::PopulationStateMarkovian,conn::ConnectionExpKernel,
+    ps_pre::PopulationStateMarkovian)
+  accumulate_signal!(rates,t_now,ps_post,conn,ps_pre)
+  return nothing
+end
+
+function accumulate_signal_upper!(::Vector{Float64},::Real,
+    ::PopulationStateMarkovian,::ConnectionExpKernel,
+    ::PopulationStateExpKernelInhibitory)
+  return nothing
+end
+
+function accumulate_signal_upper!(rates::Vector{Float64},t_now::Real,
+    ps_post::PopulationStateMarkovian,conn::ConnectionNonInteracting,
+    ps_pre::PopulationStateMarkovian)
+  accumulate_signal!(rates,t_now,ps_post,conn,ps_pre)
+  return nothing
+end
+
 function accumulate_signals!(rates,t_now,ps_post,connections,pre_states)
   accumulate_signal!(rates,t_now,ps_post,first(connections),first(pre_states))
   accumulate_signals!(rates,t_now,ps_post,Base.tail(connections),Base.tail(pre_states))
   return nothing
 end
 function accumulate_signals!(::Vector{Float64},::Real,
+    ::PopulationStateMarkovian,::Tuple{},::Tuple{})
+  return nothing
+end
+
+function accumulate_signals_upper!(rates,t_now,ps_post,connections,pre_states)
+  accumulate_signal_upper!(rates,t_now,ps_post,first(connections),first(pre_states))
+  accumulate_signals_upper!(rates,t_now,ps_post,
+    Base.tail(connections),Base.tail(pre_states))
+  return nothing
+end
+function accumulate_signals_upper!(::Vector{Float64},::Real,
     ::PopulationStateMarkovian,::Tuple{},::Tuple{})
   return nothing
 end
@@ -375,21 +406,15 @@ function compute_rates!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpK
 end
 
 
-# The current upper-rate behavior includes inhibitory contributions and then
-# floors the result at the external input. Its validity for differing
-# excitatory and inhibitory time constants is investigated in benchmarks.
+# Between spikes, excitatory exponential signals can only decay. Their current
+# value therefore bounds their future value. Inhibitory signals are omitted:
+# as they decay toward zero they can reveal a larger future rate.
 function compute_rates_upper!(r_alloc::Vector{Float64},t_now::Real,pop::PopulationExpKernel)
-  inputs = pop.input
+  copyto!(r_alloc,pop.input)
+  accumulate_signals_upper!(r_alloc,t_now,pop.state,pop.connections,pop.pre_states)
   for i in eachindex(r_alloc)
-    @inbounds r_alloc[i] = max(inputs[i],eps(Float64))
-  end
-  accumulate_signals!(r_alloc,t_now,pop.state,pop.connections,pop.pre_states)
-  for i in eachindex(r_alloc)
-    @inbounds begin
-      external_input_nz = max(inputs[i],eps(Float64))
-      rate = apply_nonlinearity(r_alloc[i],pop.nonlinearity)
-      r_alloc[i] = max(external_input_nz,rate)
-    end
+    @inbounds r_alloc[i] = max(apply_nonlinearity(r_alloc[i],pop.nonlinearity),
+      eps(Float64))
   end
   return nothing
 end
@@ -405,13 +430,10 @@ end
 
 function compute_rate_upper(t_now::R,external_input::R,pop::PopulationExpKernel, 
     idxneu::Integer) where {R<:Real}
-  external_input_nz = max(external_input,eps(R)) # deals with negative inputs
   ps_post = pop.state
-  ret = call_for_each_compute_signal_upper(external_input_nz,t_now,idxneu,ps_post,
+  ret = call_for_each_compute_signal_upper(external_input,t_now,idxneu,ps_post,
     pop.connections,pop.pre_states)
-  ret_nonlin = apply_nonlinearity(ret,pop.nonlinearity)
-  ret = max(external_input_nz,ret_nonlin)
-  return ret
+  return max(apply_nonlinearity(ret,pop.nonlinearity),eps(R))
 end
 
 # multivariate thinning algorithm. From Y. Chen, 2016

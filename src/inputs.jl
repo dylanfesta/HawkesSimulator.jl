@@ -168,3 +168,19 @@ end
     ::ConnectionVoid,in::InputCurrentFun)
   return in.f_upper(t_now,idx_post)
 end
+
+function accumulate_signal!(rates::Vector{Float64},t_now::Real,
+    ::PopulationStateMarkovian,::ConnectionVoid,in::InputCurrentFun)
+  for idx_post in eachindex(rates)
+    @inbounds rates[idx_post] += in.f(t_now,idx_post)
+  end
+  return nothing
+end
+
+function accumulate_signal_upper!(rates::Vector{Float64},t_now::Real,
+    ::PopulationStateMarkovian,::ConnectionVoid,in::InputCurrentFun)
+  for idx_post in eachindex(rates)
+    @inbounds rates[idx_post] += in.f_upper(t_now,idx_post)
+  end
+  return nothing
+end
