@@ -16,9 +16,10 @@ StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
 Colors = ">=0.12"
 Distributions = ">=0.25"
 FFTW = ">=1.0"
-LinearAlgebra = "< 0.0.1, 1.9"
-Random = "< 0.0.1, 1.9"
-Statistics = ">=1, < 0.0.1"
+# Older Julia resolvers can report bundled standard libraries as version 0.0.0.
+LinearAlgebra = "<0.0.1, 1"
+Random = "<0.0.1, 1"
+Statistics = "<0.0.1, 1"
 StatsBase = ">=0.33, 0.34"
 julia = ">=1.9"
 

@@ -97,13 +97,13 @@ end
 ## Start with Vogels et al. 2011
 
 The average change of weight should be
-$ B r_{\text{pre}}  r_{\text{post}} - \eta\, \alpha\,r_{\text{pre}}$.
-Where the area under the curve  $B$ is $B = 2 \eta \tau$  and
-$\alpha = 2 r_{\text{targ}}\, \tau$.
+``B r_{\text{pre}} r_{\text{post}} - \eta\, \alpha\,r_{\text{pre}}``.
+Where the area under the curve ``B`` is ``B = 2 \eta \tau`` and
+``\alpha = 2 r_{\text{targ}}\, \tau``.
 
 Putting them together we get:
 ```math
-\Delta W = 2\;\eta\,\tau \, r_{\text{pre}} \; (r_{\text{post}} -  r_{\text{targ}})$
+\Delta W = 2\;\eta\,\tau \, r_{\text{pre}} \; (r_{\text{post}} -  r_{\text{targ}})
 ```
 As expected, the weight is tracking the difference between the
 target rate and the actual postsynaptic rate.
@@ -153,7 +153,7 @@ and correlation-dependent terms. Here we ignore the latter.
 \Delta W =  A \; \left(  \alpha_{\text{pre}} \, r_{\text{pre}} + \alpha_{\text{post}} \, r_{\text{post}} +
  B \, r_{\text{pre}} \, r_{\text{post}} \right)
 ```
-With $ B= 2\;(1+\theta)$ for symmetric   and $ B = (1+\theta)$ for antisymmetric.
+With ``B = 2\;(1+\theta)`` for symmetric and ``B = (1+\theta)`` for antisymmetric.
 
 ````@example plasticity_STDP_ratecompare
 function analyticΔW(plast::H.PlasticitySymmetricSTDPX,
@@ -293,4 +293,3 @@ end
 ---
 
 *This page was generated using [Literate.jl](https://github.com/fredrikekre/Literate.jl).*
-
